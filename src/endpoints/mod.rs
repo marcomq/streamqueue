@@ -1,15 +1,21 @@
-//  mq_multi_bridge
+//  streamqueue
 //  © Copyright 2025, by Marco Mengelkoch
 //  Licensed under MIT License, see License file for more details
-//  git clone https://github.com/marcomq/mq_multi_bridge
+//  git clone https://github.com/marcomq/streamqueue
 
+#[cfg(feature = "amqp")]
 pub mod amqp;
-pub mod file;
+#[cfg(feature = "http")]
 pub mod http;
+#[cfg(feature = "kafka")]
 pub mod kafka;
+#[cfg(feature = "mqtt")]
 pub mod mqtt;
+#[cfg(feature = "memory")]
 pub mod memory;
+#[cfg(feature = "nats")]
 pub mod nats;
+pub mod file;
 pub mod static_endpoint;
 
 use crate::config::{
@@ -27,10 +33,12 @@ pub async fn create_consumer_from_route(
     endpoint: &ConsumerEndpoint,
 ) -> Result<Box<dyn MessageConsumer>> {
     match &endpoint.endpoint_type {
+        #[cfg(feature = "kafka")]
         ConsumerEndpointType::Kafka(cfg) => {
             let topic = cfg.endpoint.topic.as_deref().unwrap_or(route_name);
             Ok(Box::new(kafka::KafkaConsumer::new(&cfg.config, topic)?))
         }
+        #[cfg(feature = "nats")]
         ConsumerEndpointType::Nats(cfg) => {
             let subject = cfg.endpoint.subject.as_deref().unwrap_or(route_name);
             let stream_name = cfg
@@ -48,10 +56,12 @@ pub async fn create_consumer_from_route(
                 nats::NatsConsumer::new(&cfg.config, stream_name, subject).await?,
             ))
         }
+        #[cfg(feature = "amqp")]
         ConsumerEndpointType::Amqp(cfg) => {
             let queue = cfg.endpoint.queue.as_deref().unwrap_or(route_name);
             Ok(Box::new(amqp::AmqpConsumer::new(&cfg.config, queue).await?))
         }
+        #[cfg(feature = "mqtt")]
         ConsumerEndpointType::Mqtt(cfg) => {
             let topic = cfg.endpoint.topic.as_deref().unwrap_or(route_name);
             Ok(Box::new(
@@ -61,12 +71,14 @@ pub async fn create_consumer_from_route(
         ConsumerEndpointType::File(cfg) => {
             Ok(Box::new(file::FileConsumer::new(&cfg.config).await?))
         }
+        #[cfg(feature = "http")]
         ConsumerEndpointType::Http(cfg) => {
             Ok(Box::new(http::HttpConsumer::new(&cfg.config).await?))
         }
         ConsumerEndpointType::Static(cfg) => {
             Ok(Box::new(static_endpoint::StaticRequestConsumer::new(cfg)?))
         }
+        #[cfg(feature = "memory")]
         ConsumerEndpointType::Memory(cfg) => {
             Ok(Box::new(memory::MemoryConsumer::new(&memory::get_or_create_channel(&cfg.config))))
         }
@@ -79,12 +91,14 @@ pub async fn create_publisher_from_route(
     endpoint: &PublisherEndpoint,
 ) -> Result<Arc<dyn MessagePublisher>> {
     match &endpoint.endpoint_type {
+        #[cfg(feature = "kafka")]
         PublisherEndpointType::Kafka(cfg) => {
             let topic = cfg.endpoint.topic.as_deref().unwrap_or(route_name);
             Ok(Arc::new(
                 kafka::KafkaPublisher::new(&cfg.config, topic).await?,
             ))
         }
+        #[cfg(feature = "nats")]
         PublisherEndpointType::Nats(cfg) => {
             let subject = cfg.endpoint.subject.as_deref().unwrap_or(route_name);
             Ok(Arc::new(
@@ -92,12 +106,14 @@ pub async fn create_publisher_from_route(
                     .await?,
             ))
         }
+        #[cfg(feature = "amqp")]
         PublisherEndpointType::Amqp(cfg) => {
             let queue = cfg.endpoint.queue.as_deref().unwrap_or(route_name);
             Ok(Arc::new(
                 amqp::AmqpPublisher::new(&cfg.config, queue).await?,
             ))
         }
+        #[cfg(feature = "mqtt")]
         PublisherEndpointType::Mqtt(cfg) => {
             let topic = cfg.endpoint.topic.as_deref().unwrap_or(route_name);
             Ok(Arc::new(
@@ -107,6 +123,7 @@ pub async fn create_publisher_from_route(
         PublisherEndpointType::File(cfg) => {
             Ok(Arc::new(file::FilePublisher::new(&cfg.config).await?))
         }
+        #[cfg(feature = "http")]
         PublisherEndpointType::Http(cfg) => {
             let mut sink = http::HttpPublisher::new(&cfg.config).await?;
             if let Some(url) = &cfg.endpoint.url {
@@ -117,6 +134,7 @@ pub async fn create_publisher_from_route(
         PublisherEndpointType::Static(cfg) => Ok(Arc::new(
             static_endpoint::StaticEndpointPublisher::new(cfg)?,
         )),
+        #[cfg(feature = "memory")]
         PublisherEndpointType::Memory(cfg) => {
             Ok(Arc::new(memory::MemoryPublisher::new(&memory::get_or_create_channel(&cfg.config))))
         }
@@ -128,12 +146,15 @@ pub async fn create_dlq_from_route(
     route: &Route,
     name: &str,
 ) -> Result<Option<Arc<dyn MessagePublisher>>> {
+    #[cfg(feature = "kafka")] {
+        
     if let Some(dlq_config) = &route.dlq {
         info!("DLQ configured for route {}", name);
         let topic = dlq_config.kafka.endpoint.topic.as_deref().unwrap_or("dlq");
         let publisher = kafka::KafkaPublisher::new(&dlq_config.kafka.config, topic).await?;
-        Ok(Some(Arc::new(publisher)))
-    } else {
-        Ok(None)
+        return Ok(Some(Arc::new(publisher)));
+    } 
+    
     }
+    Ok(None)
 }

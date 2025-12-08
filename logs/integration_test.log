@@ -1,0 +1,32 @@
+2025-12-08T18:35:45.534817Z  INFO streamqueue::endpoints::memory: Creating new runtime memory channel topic=mem-in
+2025-12-08T18:35:45.535134Z  INFO streamqueue::endpoints::memory: Creating new runtime memory channel topic=mem-out
+2025-12-08T18:35:45.555210Z  INFO streamqueue::bridge: Bridge starting up...
+2025-12-08T18:35:45.556129Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Initializing route memory-pipe
+2025-12-08T18:35:45.556261Z  INFO route{route.name=memory-pipe}: streamqueue::deduplication: Opening deduplication database at: "/tmp/streamqueue/db/memory-pipe"
+2025-12-08T18:35:45.623537Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Successfully connected to publisher
+2025-12-08T18:35:45.623659Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Successfully connected to consumer
+2025-12-08T18:35:45.623689Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Consumer connected. Waiting for other routes to be ready...
+2025-12-08T18:35:45.623721Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Route connected. Starting message processing.
+2025-12-08T18:35:45.623745Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Using direct MemoryConsumer for maximum performance.
+2025-12-08T18:35:51.035983Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: All worker tasks have completed.
+2025-12-08T18:35:51.036101Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Shutting down and waiting for all worker tasks to complete.
+2025-12-08T18:35:51.036132Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Flushing final messages for route.
+2025-12-08T18:35:51.036169Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Consumer stream ended (e.g., EOF). Route finished.
+2025-12-08T18:35:51.036264Z  INFO streamqueue::bridge: All routes have completed their work. Bridge shutting down.
+2025-12-08T18:35:51.036286Z  INFO streamqueue::bridge: Bridge has shut down.
+2025-12-08T18:39:28.926811Z  INFO streamqueue::endpoints::memory: Creating new runtime memory channel topic=mem-in
+2025-12-08T18:39:28.927394Z  INFO streamqueue::endpoints::memory: Creating new runtime memory channel topic=mem-out
+2025-12-08T18:39:28.967306Z  INFO streamqueue::bridge: Bridge starting up...
+2025-12-08T18:39:28.968973Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Initializing route memory-pipe
+2025-12-08T18:39:28.969223Z  INFO route{route.name=memory-pipe}: streamqueue::deduplication: Opening deduplication database at: "/tmp/streamqueue/db/memory-pipe"
+2025-12-08T18:39:29.086238Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Successfully connected to publisher
+2025-12-08T18:39:29.086520Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Successfully connected to consumer
+2025-12-08T18:39:29.086786Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Consumer connected. Waiting for other routes to be ready...
+2025-12-08T18:39:29.086919Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Route connected. Starting message processing.
+2025-12-08T18:39:29.087024Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Using direct MemoryConsumer for maximum performance.
+2025-12-08T18:39:35.969447Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: All worker tasks have completed.
+2025-12-08T18:39:35.969621Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Shutting down and waiting for all worker tasks to complete.
+2025-12-08T18:39:35.969665Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Flushing final messages for route.
+2025-12-08T18:39:35.969728Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Consumer stream ended (e.g., EOF). Route finished.
+2025-12-08T18:39:35.969801Z  INFO streamqueue::bridge: All routes have completed their work. Bridge shutting down.
+2025-12-08T18:39:35.969823Z  INFO streamqueue::bridge: Bridge has shut down.

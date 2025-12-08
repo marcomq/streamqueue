@@ -4,7 +4,7 @@ use super::common::{
     run_pipeline_test, run_test_with_docker, setup_logging, PERF_TEST_CONCURRENCY,
     PERF_TEST_MESSAGE_COUNT,
 };
-use mq_multi_bridge::endpoints::mqtt::{MqttConsumer, MqttPublisher};
+use streamqueue::endpoints::mqtt::{MqttConsumer, MqttPublisher};
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -39,7 +39,7 @@ pub async fn test_mqtt_performance_direct() {
         let topic = "test_topic_mqtt/direct";
         let publisher_id = format!("perftest-pub-{}", unique_id);
         let consumer_id = format!("perftest-sub-{}", unique_id);
-        let config = mq_multi_bridge::config::MqttConfig {
+        let config = streamqueue::config::MqttConfig {
             url: "mqtt://localhost:1883".to_string(),
             // Increase the client's incoming message buffer to hold all messages from the test run.
             queue_capacity: Some(PERF_TEST_MESSAGE_COUNT_DIRECT),

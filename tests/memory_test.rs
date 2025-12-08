@@ -1,15 +1,15 @@
-use mq_multi_bridge::config::{
+use streamqueue::config::{
     Config, ConsumerEndpoint, ConsumerEndpointType, MemoryConfig, MemoryConsumerEndpoint,
     MemoryEndpoint, MemoryPublisherEndpoint, PublisherEndpoint, PublisherEndpointType, Route,
 };
-use mq_multi_bridge::endpoints::memory::get_or_create_channel;
+use streamqueue::endpoints::memory::get_or_create_channel;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 mod integration;
 
 // run in release:
-// cargo test --package mq_multi_bridge --test memory_test --features integration-test --release -- test_memory_to_memory_pipeline --exact --nocapture
+// cargo test --package streamqueue --test memory_test --features integration-test --release -- test_memory_to_memory_pipeline --exact --nocapture
 
 #[tokio::test]
 async fn test_memory_to_memory_pipeline() {
@@ -50,7 +50,7 @@ async fn test_memory_to_memory_pipeline() {
         },
     );
 
-    let mut bridge = mq_multi_bridge::Bridge::new(config);
+    let mut bridge = streamqueue::Bridge::new(config);
     let bridge_handle = bridge.run();
 
     let in_channel = get_or_create_channel(&in_memory_config);

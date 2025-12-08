@@ -1,4 +1,4 @@
-//  mq_multi_bridge
+//  streamqueue
 //  © Copyright 2025, by Marco Mengelkoch
 //  Licensed under MIT License, see License file for more details
 use crate::config::Route;
@@ -378,7 +378,7 @@ impl RouteRunner {
         shutdown_rx: &mut watch::Receiver<()>,
     ) -> Arc<DeduplicationStore> {
         // The sled_path should come from a global config, but for now, we'll hardcode a temp path.
-        let db_path = Path::new("/tmp/mq_multi_bridge/db").join(name);
+        let db_path = Path::new("/tmp/streamqueue/db").join(name);
         let dedup_store = Arc::new(
             DeduplicationStore::new(db_path, 86400) // Default TTL
                 .expect("Failed to create instance-specific deduplication store"),

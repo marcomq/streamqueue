@@ -4,7 +4,7 @@ use super::common::{
     run_pipeline_test, run_test_with_docker, setup_logging, PERF_TEST_CONCURRENCY,
     PERF_TEST_MESSAGE_COUNT,
 };
-use mq_multi_bridge::endpoints::kafka::{KafkaConsumer, KafkaPublisher};
+use streamqueue::endpoints::kafka::{KafkaConsumer, KafkaPublisher};
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -33,7 +33,7 @@ pub async fn test_kafka_performance_direct() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose.kafka.yml", || async {
         let topic = "perf_test_kafka_direct";
-        let config = mq_multi_bridge::config::KafkaConfig {
+        let config = streamqueue::config::KafkaConfig {
             brokers: "localhost:9092".to_string(),
             group_id: Some("perf_test_group_kafka".to_string()),
             producer_options: Some(vec![

@@ -9,7 +9,7 @@ use super::common::{
     run_pipeline_test, run_test_with_docker, setup_logging, PERF_TEST_CONCURRENCY,
     PERF_TEST_MESSAGE_COUNT,
 };
-use mq_multi_bridge::endpoints::nats::{NatsConsumer, NatsPublisher};
+use streamqueue::endpoints::nats::{NatsConsumer, NatsPublisher};
 const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
 
 pub async fn test_nats_pipeline() {
@@ -33,7 +33,7 @@ pub async fn test_nats_performance_direct() {
     run_test_with_docker("tests/integration/docker-compose.nats.yml", || async {
         let stream_name = "perf_stream_nats_direct";
         let subject = format!("{}.direct", stream_name);
-        let config = mq_multi_bridge::config::NatsConfig {
+        let config = streamqueue::config::NatsConfig {
             url: "nats://localhost:4222".to_string(),
             await_ack: true,
             ..Default::default()

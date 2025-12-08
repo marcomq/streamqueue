@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use config::File as ConfigFile; // Use an alias for the File type from the config crate
-use mq_multi_bridge::config::Config as AppConfig; // Use an alias for our app's config struct
+use streamqueue::config::Config as AppConfig; // Use an alias for our app's config struct
 use super::common::{
     generate_test_messages, read_and_drain_memory_channel, run_test_with_docker, setup_logging,
 };
@@ -28,19 +28,19 @@ pub async fn test_all_pipelines_together() {
         println!("------------------------------------------");
 
         // Run the bridge
-        let mut bridge = mq_multi_bridge::Bridge::new(test_config);
+        let mut bridge = streamqueue::Bridge::new(test_config);
         let shutdown_tx = bridge.get_shutdown_handle();
         let _bridge_handle = bridge.run();
 
         // Get memory channels for each route
-        let in_kafka = mq_multi_bridge::endpoints::memory::get_or_create_channel(
-            &mq_multi_bridge::config::MemoryConfig {
+        let in_kafka = streamqueue::endpoints::memory::get_or_create_channel(
+            &streamqueue::config::MemoryConfig {
                 topic: "in-kafka".to_string(),
                 ..Default::default()
             },
         );
-        let out_kafka = mq_multi_bridge::endpoints::memory::get_or_create_channel(
-            &mq_multi_bridge::config::MemoryConfig {
+        let out_kafka = streamqueue::endpoints::memory::get_or_create_channel(
+            &streamqueue::config::MemoryConfig {
                 topic: "out-kafka".to_string(),
                 ..Default::default()
             },

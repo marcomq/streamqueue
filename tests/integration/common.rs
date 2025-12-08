@@ -1,10 +1,10 @@
 #![allow(dead_code)] // This module contains helpers used by various integration tests.
 use async_channel::{bounded, Receiver, Sender};
 use chrono;
-use mq_multi_bridge::config::Config as AppConfig;
-use mq_multi_bridge::consumers::{CommitFunc, MessageConsumer};
-use mq_multi_bridge::model::CanonicalMessage;
-use mq_multi_bridge::publishers::MessagePublisher;
+use streamqueue::config::Config as AppConfig;
+use streamqueue::consumers::{CommitFunc, MessageConsumer};
+use streamqueue::model::CanonicalMessage;
+use streamqueue::publishers::MessagePublisher;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::any::Any;
@@ -118,7 +118,7 @@ impl Drop for DockerCompose {
 }
 
 pub fn read_and_drain_memory_channel(
-    channel: &mq_multi_bridge::endpoints::memory::MemoryChannel,
+    channel: &streamqueue::endpoints::memory::MemoryChannel,
 ) -> HashSet<String> {
     channel
         .drain_messages()
@@ -180,19 +180,19 @@ pub async fn run_pipeline_test(broker_name: &str, config_file_name: &str) {
 
     let metrics = TestMetrics::new();
 
-    let mut bridge = mq_multi_bridge::Bridge::new(test_config);
+    let mut bridge = streamqueue::Bridge::new(test_config);
     let shutdown_tx = bridge.get_shutdown_handle();
     let bridge_task = bridge.run();
 
     // Get the memory channels to interact with the bridge
-    let in_channel = mq_multi_bridge::endpoints::memory::get_or_create_channel(
-        &mq_multi_bridge::config::MemoryConfig {
+    let in_channel = streamqueue::endpoints::memory::get_or_create_channel(
+        &streamqueue::config::MemoryConfig {
             topic: "test-in".to_string(),
             ..Default::default()
         },
     );
-    let out_channel = mq_multi_bridge::endpoints::memory::get_or_create_channel(
-        &mq_multi_bridge::config::MemoryConfig {
+    let out_channel = streamqueue::endpoints::memory::get_or_create_channel(
+        &streamqueue::config::MemoryConfig {
             topic: "test-out".to_string(),
             ..Default::default()
         },
@@ -284,7 +284,7 @@ pub async fn run_performance_pipeline_test(
         .routes
         .insert(broker_to_memory_route_name.to_string(), route_from_broker);
 
-    let mut bridge = mq_multi_bridge::Bridge::new(test_config);
+    let mut bridge = streamqueue::Bridge::new(test_config);
     let shutdown_tx = bridge.get_shutdown_handle();
     println!("[{}] Starting performance test...", broker_name);
 
@@ -293,14 +293,14 @@ pub async fn run_performance_pipeline_test(
     let start_time = std::time::Instant::now();
 
     // Get the memory channels to interact with the bridge
-    let in_channel = mq_multi_bridge::endpoints::memory::get_or_create_channel(
-        &mq_multi_bridge::config::MemoryConfig {
+    let in_channel = streamqueue::endpoints::memory::get_or_create_channel(
+        &streamqueue::config::MemoryConfig {
             topic: "test-in".to_string(),
             ..Default::default()
         },
     );
-    let out_channel = mq_multi_bridge::endpoints::memory::get_or_create_channel(
-        &mq_multi_bridge::config::MemoryConfig {
+    let out_channel = streamqueue::endpoints::memory::get_or_create_channel(
+        &streamqueue::config::MemoryConfig {
             topic: "test-out".to_string(),
             ..Default::default()
         },
@@ -370,7 +370,7 @@ pub fn setup_logging() {
     // Using a std::sync::Once ensures this is only run once per test binary.
     static START: std::sync::Once = std::sync::Once::new();
     START.call_once(|| {
-        let file_appender = tracing_appender::rolling::never(".", "integration_test.log");
+        let file_appender = tracing_appender::rolling::never("logs", "integration_test.log");
         let (non_blocking_writer, guard) = tracing_appender::non_blocking(file_appender);
 
         *LOG_GUARD.lock().unwrap() = Some(guard);

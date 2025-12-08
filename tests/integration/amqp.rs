@@ -4,7 +4,7 @@ use super::common::{
     run_pipeline_test, run_test_with_docker, setup_logging, PERF_TEST_CONCURRENCY,
     PERF_TEST_MESSAGE_COUNT,
 };
-use mq_multi_bridge::endpoints::amqp::{AmqpConsumer, AmqpPublisher};
+use streamqueue::endpoints::amqp::{AmqpConsumer, AmqpPublisher};
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -32,7 +32,7 @@ pub async fn test_amqp_performance_direct() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose.amqp.yml", || async {
         let queue = "perf_test_amqp_direct";
-        let config = mq_multi_bridge::config::AmqpConfig {
+        let config = streamqueue::config::AmqpConfig {
             url: "amqp://guest:guest@localhost:5672/%2f".to_string(),
             await_ack: false,
             ..Default::default()

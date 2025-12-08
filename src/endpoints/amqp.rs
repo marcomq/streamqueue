@@ -124,7 +124,7 @@ impl AmqpConsumer {
         let consumer = channel
             .basic_consume(
                 queue,
-                "mq_multi_bridge_amqp_consumer",
+                "streamqueue_amqp_consumer",
                 BasicConsumeOptions::default(),
                 FieldTable::default(),
             )

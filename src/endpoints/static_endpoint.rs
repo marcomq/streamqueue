@@ -1,7 +1,7 @@
-//  mq_multi_bridge
+//  streamqueue
 //  © Copyright 2025, by Marco Mengelkoch
 //  Licensed under MIT License, see License file for more details
-//  git clone https://github.com/marcomq/mq_multi_bridge
+//  git clone https://github.com/marcomq/streamqueue
 
 use crate::config::StaticEndpoint;
 use crate::consumers::{BoxFuture, CommitFunc, MessageConsumer};
