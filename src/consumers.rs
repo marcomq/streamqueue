@@ -1,10 +1,10 @@
 use crate::model::CanonicalMessage;
+use anyhow::anyhow;
+use async_channel::{bounded, Receiver};
 use async_trait::async_trait;
 pub use futures::future::BoxFuture;
 use std::any::Any;
 use tokio::task::JoinHandle;
-use async_channel::{bounded, Receiver};
-use anyhow::anyhow;
 
 /// A closure that can be called to commit the message.
 /// It returns a `BoxFuture` to allow for async commit operations.
@@ -41,7 +41,9 @@ impl BufferedConsumer {
                         if tx.send(message_data).await.is_err() {
                             // The receiver was dropped, which means the BufferedConsumer was dropped.
                             // We can safely exit the background task.
-                            tracing::info!("BufferedConsumer channel closed, background task stopping.");
+                            tracing::info!(
+                                "BufferedConsumer channel closed, background task stopping."
+                            );
                             break;
                         }
                     }

@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use config::File as ConfigFile; // Use an alias for the File type from the config crate
-use streamqueue::config::Config as AppConfig; // Use an alias for our app's config struct
 use super::common::{
     generate_test_messages, read_and_drain_memory_channel, run_test_with_docker, setup_logging,
 };
+use config::File as ConfigFile; // Use an alias for the File type from the config crate
+use streamqueue::config::Config as AppConfig; // Use an alias for our app's config struct
 
 use std::time::Duration;
 

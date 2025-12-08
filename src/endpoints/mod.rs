@@ -5,16 +5,16 @@
 
 #[cfg(feature = "amqp")]
 pub mod amqp;
+pub mod file;
 #[cfg(feature = "http")]
 pub mod http;
 #[cfg(feature = "kafka")]
 pub mod kafka;
+pub mod memory;
 #[cfg(feature = "mqtt")]
 pub mod mqtt;
 #[cfg(feature = "nats")]
 pub mod nats;
-pub mod memory;
-pub mod file;
 pub mod static_endpoint;
 
 use crate::config::{
@@ -76,9 +76,9 @@ pub async fn create_consumer_from_route(
         ConsumerEndpointType::Static(cfg) => {
             Ok(Box::new(static_endpoint::StaticRequestConsumer::new(cfg)?))
         }
-        ConsumerEndpointType::Memory(cfg) => {
-            Ok(Box::new(memory::MemoryConsumer::new(&memory::get_or_create_channel(&cfg.config))))
-        }
+        ConsumerEndpointType::Memory(cfg) => Ok(Box::new(memory::MemoryConsumer::new(
+            &memory::get_or_create_channel(&cfg.config),
+        ))),
         _ => Err(anyhow!(
             "[route:{}] Unsupported consumer endpoint type",
             route_name
@@ -135,9 +135,9 @@ pub async fn create_publisher_from_route(
         PublisherEndpointType::Static(cfg) => Ok(Arc::new(
             static_endpoint::StaticEndpointPublisher::new(cfg)?,
         )),
-        PublisherEndpointType::Memory(cfg) => {
-            Ok(Arc::new(memory::MemoryPublisher::new(&memory::get_or_create_channel(&cfg.config))))
-        }
+        PublisherEndpointType::Memory(cfg) => Ok(Arc::new(memory::MemoryPublisher::new(
+            &memory::get_or_create_channel(&cfg.config),
+        ))),
         _ => Err(anyhow!(
             "[route:{}] Unsupported publisher endpoint type",
             route_name
@@ -150,15 +150,14 @@ pub async fn create_dlq_from_route(
     route: &Route,
     name: &str,
 ) -> Result<Option<Arc<dyn MessagePublisher>>> {
-    #[cfg(feature = "kafka")] {
-        
-    if let Some(dlq_config) = &route.dlq {
-        info!("DLQ configured for route {}", name);
-        let topic = dlq_config.kafka.endpoint.topic.as_deref().unwrap_or("dlq");
-        let publisher = kafka::KafkaPublisher::new(&dlq_config.kafka.config, topic).await?;
-        return Ok(Some(Arc::new(publisher)));
-    } 
-    
+    #[cfg(feature = "kafka")]
+    {
+        if let Some(dlq_config) = &route.dlq {
+            info!("DLQ configured for route {}", name);
+            let topic = dlq_config.kafka.endpoint.topic.as_deref().unwrap_or("dlq");
+            let publisher = kafka::KafkaPublisher::new(&dlq_config.kafka.config, topic).await?;
+            return Ok(Some(Arc::new(publisher)));
+        }
     }
     Ok(None)
 }

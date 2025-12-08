@@ -10,11 +10,11 @@ use crate::endpoints::{
 use crate::model::CanonicalMessage;
 use crate::publishers::MessagePublisher;
 use anyhow::Result;
-use metrics::{Counter, Histogram, counter, histogram};
+use metrics::{counter, histogram, Counter, Histogram};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Barrier, mpsc, watch};
+use tokio::sync::{mpsc, watch, Barrier};
 use tokio::task::{JoinHandle, JoinSet};
 use tokio::time::sleep;
 use tracing::{error, info, instrument, trace};
@@ -53,7 +53,6 @@ impl RouteMetrics {
             self.processing_duration.record(elapsed);
         }
     }
-    
 }
 
 pub(crate) enum RouteRunnerCommand {
@@ -166,7 +165,6 @@ impl RouteRunner {
                 processing_duration: histogram!("bridge_message_processing_duration_seconds", "route" => name.clone()),
             });
 
-
             let processing_result = Self::process_messages(
                 &route,
                 &mut shutdown_rx,
@@ -234,14 +232,57 @@ impl RouteRunner {
     async fn process_messages(
         route: &Route,
         shutdown_rx: &mut watch::Receiver<()>,
+        consumer: Box<dyn MessageConsumer>,
+        publisher: Arc<dyn MessagePublisher>,
+        dlq_publisher: Option<Arc<dyn MessagePublisher>>,
+        dedup_store: Arc<DeduplicationStore>,
+        metrics_store: Arc<RouteMetrics>,
+        command_rx: mpsc::Receiver<RouteRunnerCommand>,
+    ) -> Result<(), (anyhow::Error, mpsc::Receiver<RouteRunnerCommand>)> {
+        let concurrency = route.concurrency.unwrap_or(10);
+
+        // Fast path for single-concurrency to avoid channel overhead.
+        if concurrency == 1 {
+            tracing::debug!("Running in single-concurrency mode (fast path).");
+            Self::process_messages_single_threaded(
+                route,
+                shutdown_rx,
+                consumer,
+                publisher,
+                dlq_publisher,
+                dedup_store,
+                metrics_store,
+                command_rx,
+            )
+            .await
+        } else {
+            Self::process_messages_multi_threaded(
+                route,
+                shutdown_rx,
+                consumer,
+                publisher,
+                dlq_publisher,
+                dedup_store,
+                metrics_store,
+                command_rx,
+                concurrency,
+            )
+            .await
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn process_messages_multi_threaded(
+        route: &Route,
+        shutdown_rx: &mut watch::Receiver<()>,
         mut consumer: Box<dyn MessageConsumer>,
         publisher: Arc<dyn MessagePublisher>,
         dlq_publisher: Option<Arc<dyn MessagePublisher>>,
         dedup_store: Arc<DeduplicationStore>,
         metrics_store: Arc<RouteMetrics>,
         mut command_rx: mpsc::Receiver<RouteRunnerCommand>,
+        concurrency: usize,
     ) -> Result<(), (anyhow::Error, mpsc::Receiver<RouteRunnerCommand>)> {
-        let concurrency = route.concurrency.unwrap_or(10);
         let (work_tx, work_rx) =
             async_channel::bounded::<(CanonicalMessage, CommitFunc)>(concurrency * 2);
 
@@ -293,7 +334,10 @@ impl RouteRunner {
                         }
                     }
                     Err(e) => {
-                        if !e.to_string().contains("BufferedConsumer channel has been closed") {
+                        if !e
+                            .to_string()
+                            .contains("BufferedConsumer channel has been closed")
+                        {
                             info!(error = %e, "Underlying consumer failed. Stopping consumer task.");
                         } else {
                             info!("Consumer stream ended (e.g. EOF). Stopping consumer task.");
@@ -381,6 +425,84 @@ impl RouteRunner {
     }
 
     #[allow(clippy::too_many_arguments)]
+    async fn process_messages_single_threaded(
+        route: &Route,
+        shutdown_rx: &mut watch::Receiver<()>,
+        mut consumer: Box<dyn MessageConsumer>,
+        publisher: Arc<dyn MessagePublisher>,
+        dlq_publisher: Option<Arc<dyn MessagePublisher>>,
+        dedup_store: Arc<DeduplicationStore>,
+        metrics_store: Arc<RouteMetrics>,
+        mut command_rx: mpsc::Receiver<RouteRunnerCommand>,
+    ) -> Result<(), (anyhow::Error, mpsc::Receiver<RouteRunnerCommand>)> {
+        let deduplication_enabled = route.deduplication_enabled;
+        let mut flush_interval = tokio::time::interval(Duration::from_millis(500));
+
+        'main_loop: loop {
+            tokio::select! {
+                biased;
+                // Prioritize shutdown signal
+                _ = shutdown_rx.changed() => {
+                    info!("Shutdown signal received in main loop. Draining route.");
+                    break 'main_loop;
+                }
+                // Handle commands for this route
+                Some(command) = command_rx.recv() => {
+                    match command {
+                        RouteRunnerCommand::Flush => {
+                            trace!("Manual flush command received.");
+                            Self::flush_publishers(&publisher, &dlq_publisher).await;
+                        }
+                    }
+                },
+                // Handle periodic flushing
+                _ = flush_interval.tick() => {
+                    trace!("Periodic flush triggered.");
+                    Self::flush_publishers(&publisher, &dlq_publisher).await;
+                },
+                // Receive and process messages directly
+                received = consumer.receive() => {
+                    match received {
+                        Ok((message, commit_fn)) => {
+                            Self::process_single_message(
+                                deduplication_enabled,
+                                &metrics_store,
+                                &dedup_store,
+                                &publisher,
+                                &dlq_publisher,
+                                message,
+                                commit_fn,
+                            ).await;
+                        }
+                        Err(e) => {
+                            if !e.to_string().contains("BufferedConsumer channel has been closed") {
+                                info!(error = %e, "Underlying consumer failed. Stopping consumer task.");
+                            } else {
+                                info!("Consumer stream ended (e.g. EOF). Stopping consumer task.");
+                            }
+                            break 'main_loop; // Consumer finished, exit loop.
+                        }
+                    }
+                }
+            }
+        }
+
+        info!("Route processing loop finished. Flushing final messages.");
+        // After the loop, explicitly flush the publisher to ensure all buffered
+        // messages are written before the route runner exits.
+        if let Err(e) = publisher.flush().await {
+            return Err((e, command_rx));
+        }
+        if let Some(dlq) = dlq_publisher {
+            if let Err(e) = dlq.flush().await {
+                return Err((e, command_rx));
+            }
+        }
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
     async fn process_single_message(
         deduplication_enabled: bool,
         metrics_store: &Arc<RouteMetrics>,
@@ -395,12 +517,12 @@ impl RouteRunner {
 
         if deduplication_enabled && dedup.is_duplicate(&msg_id).unwrap_or(false) {
             trace!(%msg_id, "Duplicate message, skipping.");
-            metrics_store.inc_duplicates(1);       
+            metrics_store.inc_duplicates(1);
             commit_fn(None).await; // Acknowledge the duplicate
             return;
         }
         metrics_store.inc_received(1);
-  
+
         trace!(%msg_id, "Sending message to publisher.");
         match publisher.send(message.clone()).await {
             Ok(response) => {

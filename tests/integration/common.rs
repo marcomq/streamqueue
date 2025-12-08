@@ -1,16 +1,16 @@
 #![allow(dead_code)] // This module contains helpers used by various integration tests.
 use async_channel::{bounded, Receiver, Sender};
 use chrono;
+use serde_json::json;
+use std::any::Any;
+use std::collections::{HashMap, HashSet};
+use std::process::Command;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use streamqueue::config::Config as AppConfig;
 use streamqueue::consumers::{CommitFunc, MessageConsumer};
 use streamqueue::model::CanonicalMessage;
 use streamqueue::publishers::MessagePublisher;
-use serde_json::json;
-use std::collections::{HashMap, HashSet};
-use std::any::Any;
-use std::process::Command;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
 use tempfile::tempdir;
 
 use config::File as ConfigFile;
@@ -185,18 +185,16 @@ pub async fn run_pipeline_test(broker_name: &str, config_file_name: &str) {
     let bridge_task = bridge.run();
 
     // Get the memory channels to interact with the bridge
-    let in_channel = streamqueue::endpoints::memory::get_or_create_channel(
-        &streamqueue::config::MemoryConfig {
+    let in_channel =
+        streamqueue::endpoints::memory::get_or_create_channel(&streamqueue::config::MemoryConfig {
             topic: "test-in".to_string(),
             ..Default::default()
-        },
-    );
-    let out_channel = streamqueue::endpoints::memory::get_or_create_channel(
-        &streamqueue::config::MemoryConfig {
+        });
+    let out_channel =
+        streamqueue::endpoints::memory::get_or_create_channel(&streamqueue::config::MemoryConfig {
             topic: "test-out".to_string(),
             ..Default::default()
-        },
-    );
+        });
 
     // Send messages to the input channel
     in_channel.fill_messages(messages_to_send).await.unwrap();
@@ -205,8 +203,10 @@ pub async fn run_pipeline_test(broker_name: &str, config_file_name: &str) {
     let start_time = std::time::Instant::now();
 
     while start_time.elapsed() < timeout {
-        let sent_count = metrics
-            .get_cumulative_counter("bridge_messages_received_total", &broker_to_memory_route_name);
+        let sent_count = metrics.get_cumulative_counter(
+            "bridge_messages_received_total",
+            &broker_to_memory_route_name,
+        );
         if sent_count >= num_messages as u64 {
             println!(
                 "[{}] Metrics show {} messages sent. Proceeding to verification.",
@@ -293,18 +293,16 @@ pub async fn run_performance_pipeline_test(
     let start_time = std::time::Instant::now();
 
     // Get the memory channels to interact with the bridge
-    let in_channel = streamqueue::endpoints::memory::get_or_create_channel(
-        &streamqueue::config::MemoryConfig {
+    let in_channel =
+        streamqueue::endpoints::memory::get_or_create_channel(&streamqueue::config::MemoryConfig {
             topic: "test-in".to_string(),
             ..Default::default()
-        },
-    );
-    let out_channel = streamqueue::endpoints::memory::get_or_create_channel(
-        &streamqueue::config::MemoryConfig {
+        });
+    let out_channel =
+        streamqueue::endpoints::memory::get_or_create_channel(&streamqueue::config::MemoryConfig {
             topic: "test-out".to_string(),
             ..Default::default()
-        },
-    );
+        });
 
     let bridge_handle = bridge.run();
 
@@ -312,8 +310,10 @@ pub async fn run_performance_pipeline_test(
 
     let timeout = Duration::from_secs(40);
     while start_time.elapsed() < timeout {
-        let sent_count = metrics
-            .get_cumulative_counter("bridge_messages_received_total", &broker_to_memory_route_name);
+        let sent_count = metrics.get_cumulative_counter(
+            "bridge_messages_received_total",
+            &broker_to_memory_route_name,
+        );
         if sent_count >= num_messages as u64 {
             println!(
                 "[{}] Metrics show {} messages sent. Proceeding to verification.",

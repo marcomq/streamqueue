@@ -4,11 +4,11 @@ use super::common::{
     run_pipeline_test, run_test_with_docker, setup_logging, PERF_TEST_CONCURRENCY,
     PERF_TEST_MESSAGE_COUNT,
 };
-use streamqueue::endpoints::amqp::{AmqpConsumer, AmqpPublisher};
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+use streamqueue::endpoints::amqp::{AmqpConsumer, AmqpPublisher};
 
 const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
 

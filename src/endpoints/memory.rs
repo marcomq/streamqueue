@@ -18,7 +18,8 @@ use tracing::info;
 
 /// A map to hold memory channels for the duration of the bridge setup.
 /// This allows a consumer and publisher in different routes to connect to the same in-memory topic.
-static RUNTIME_MEMORY_CHANNELS: Lazy<Mutex<HashMap<String, MemoryChannel>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static RUNTIME_MEMORY_CHANNELS: Lazy<Mutex<HashMap<String, MemoryChannel>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// A shareable, thread-safe, in-memory channel for testing.
 ///
@@ -53,9 +54,9 @@ impl MemoryChannel {
                 // can't run because the sender's thread is blocked.
                 match self.sender.try_send(message) {
                     Ok(()) => {
-                        tracing::trace!("Message filled: {}", self.sender.len()); 
+                        tracing::trace!("Message filled: {}", self.sender.len());
                         break; // Message sent, move to the next one.
-                    },
+                    }
                     Err(async_channel::TrySendError::Full(m)) => {
                         message = m; // We got the message back, so we can retry.
                         tokio::task::yield_now().await; // Allow the consumer to run.
@@ -123,8 +124,11 @@ impl MessagePublisher for MemoryPublisher {
             .send(message)
             .await
             .map_err(|e| anyhow!("Failed to send to memory channel: {}", e))?;
-        
-        tracing::trace!( "Message sent to publisher memory channel {}", self.sender.len());
+
+        tracing::trace!(
+            "Message sent to publisher memory channel {}",
+            self.sender.len()
+        );
         Ok(None)
     }
 
@@ -155,7 +159,7 @@ impl MessageConsumer for MemoryConsumer {
             .await
             .map_err(|_| anyhow!("Memory channel closed."))?;
 
-        tracing::trace!( "Message receveid. Queued: {}", self.receiver.len());
+        tracing::trace!("Message receveid. Queued: {}", self.receiver.len());
         let commit = Box::new(|_| Box::pin(async move {}) as BoxFuture<'static, ()>);
         Ok((message, commit))
     }

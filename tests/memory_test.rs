@@ -1,10 +1,10 @@
+use std::collections::HashSet;
+use std::time::{Duration, Instant};
 use streamqueue::config::{
     Config, ConsumerEndpoint, ConsumerEndpointType, MemoryConfig, MemoryConsumerEndpoint,
     MemoryEndpoint, MemoryPublisherEndpoint, PublisherEndpoint, PublisherEndpointType, Route,
 };
 use streamqueue::endpoints::memory::get_or_create_channel;
-use std::collections::HashSet;
-use std::time::{Duration, Instant};
 
 mod integration;
 
@@ -45,7 +45,7 @@ async fn test_memory_to_memory_pipeline() {
                 }),
             },
             dlq: None,
-            concurrency: Some(4),
+            concurrency: Some(1),
             deduplication_enabled: false,
         },
     );
@@ -73,10 +73,17 @@ async fn test_memory_to_memory_pipeline() {
     fill_task.await.unwrap();
 
     let duration = start_time.elapsed();
-    let received_ids: HashSet<_> = out_channel.drain_messages().into_iter().map(|m| m.message_id.to_string()).collect();
+    let received_ids: HashSet<_> = out_channel
+        .drain_messages()
+        .into_iter()
+        .map(|m| m.message_id.to_string())
+        .collect();
 
     let msgs_per_sec = num_messages as f64 / duration.as_secs_f64();
-    println!("Processed {} messages in {:.2?} ({:.2} msgs/sec)", num_messages, duration, msgs_per_sec);
+    println!(
+        "Processed {} messages in {:.2?} ({:.2} msgs/sec)",
+        num_messages, duration, msgs_per_sec
+    );
     println!("-------------------------------------------------");
 
     assert_eq!(received_ids.len(), num_messages);

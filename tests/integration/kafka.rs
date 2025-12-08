@@ -4,11 +4,11 @@ use super::common::{
     run_pipeline_test, run_test_with_docker, setup_logging, PERF_TEST_CONCURRENCY,
     PERF_TEST_MESSAGE_COUNT,
 };
-use streamqueue::endpoints::kafka::{KafkaConsumer, KafkaPublisher};
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+use streamqueue::endpoints::kafka::{KafkaConsumer, KafkaPublisher};
 
 const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
 
@@ -23,8 +23,7 @@ pub async fn test_kafka_pipeline() {
 pub async fn test_kafka_performance_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose.kafka.yml", || async {
-        run_performance_pipeline_test("Kafka", "tests/config.kafka", PERF_TEST_MESSAGE_COUNT)
-            .await;
+        run_performance_pipeline_test("Kafka", "tests/config.kafka", PERF_TEST_MESSAGE_COUNT).await;
     })
     .await;
 }

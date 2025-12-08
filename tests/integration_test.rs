@@ -3,7 +3,13 @@
 
 mod integration;
 
-#[cfg(all(feature = "nats", feature = "kafka", feature = "amqp", feature = "mqtt", feature = "http"))]
+#[cfg(all(
+    feature = "nats",
+    feature = "kafka",
+    feature = "amqp",
+    feature = "mqtt",
+    feature = "http"
+))]
 #[tokio::test]
 async fn test_all_pipelines_together() {
     integration::all_endpoints::test_all_pipelines_together().await;

@@ -28,7 +28,6 @@ pub fn load_config() -> Result<Config, config::ConfigError> {
     settings.try_deserialize()
 }
 
-
 #[allow(unused_imports)]
 mod tests {
     use super::*;
