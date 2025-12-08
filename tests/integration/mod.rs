@@ -9,5 +9,5 @@ pub mod mqtt;
 
 #[cfg(feature = "nats")]
 pub mod nats;
-#[cfg(all(feature = "nats", feature = "kafka", feature = "amqp", feature = "mqtt", feature = "http", feature = "memory"))]
+#[cfg(all(feature = "nats", feature = "kafka", feature = "amqp", feature = "mqtt", feature = "http"))]
 pub mod all_endpoints;

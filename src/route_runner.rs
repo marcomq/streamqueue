@@ -1,22 +1,60 @@
 //  streamqueue
 //  © Copyright 2025, by Marco Mengelkoch
 //  Licensed under MIT License, see License file for more details
-use crate::config::Route;
-use crate::consumers::MessageConsumer;
+use crate::config::{Config, Route};
+use crate::consumers::{CommitFunc, MessageConsumer};
 use crate::deduplication::DeduplicationStore;
 use crate::endpoints::{
     create_consumer_from_route, create_dlq_from_route, create_publisher_from_route,
 };
+use crate::model::CanonicalMessage;
 use crate::publishers::MessagePublisher;
 use anyhow::Result;
-use metrics::{counter, histogram};
+use metrics::{Counter, Histogram, counter, histogram};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Barrier, Mutex, mpsc, watch};
-use tokio::task::JoinSet;
+use tokio::sync::{Barrier, mpsc, watch};
+use tokio::task::{JoinHandle, JoinSet};
 use tokio::time::sleep;
 use tracing::{error, info, instrument, trace};
+
+struct RouteMetrics {
+    enabled: bool,
+    messages_received: Counter,
+    messages_sent: Counter,
+    messages_duplicate: Counter,
+    messages_dlq: Counter,
+    processing_duration: Histogram,
+}
+impl RouteMetrics {
+    pub fn inc_received(&self, count: u64) {
+        if self.enabled {
+            self.messages_received.increment(count);
+        }
+    }
+    pub fn inc_sent(&self, count: u64) {
+        if self.enabled {
+            self.messages_sent.increment(count);
+        }
+    }
+    pub fn inc_duplicates(&self, count: u64) {
+        if self.enabled {
+            self.messages_duplicate.increment(count);
+        }
+    }
+    pub fn inc_dlq(&self, count: u64) {
+        if self.enabled {
+            self.messages_dlq.increment(count);
+        }
+    }
+    pub fn duration(&self, elapsed: f64) {
+        if self.enabled {
+            self.processing_duration.record(elapsed);
+        }
+    }
+    
+}
 
 pub(crate) enum RouteRunnerCommand {
     Flush,
@@ -26,6 +64,7 @@ pub(crate) enum RouteRunnerCommand {
 pub(crate) struct RouteRunner {
     name: String,
     route: Route,
+    global_config: Config,
     barrier: Arc<Barrier>,
     shutdown_rx: watch::Receiver<()>,
     command_rx: mpsc::Receiver<RouteRunnerCommand>,
@@ -35,6 +74,7 @@ impl RouteRunner {
     pub(crate) fn new(
         name: String,
         route: Route,
+        global_config: Config,
         barrier: Arc<Barrier>,
         shutdown_rx: watch::Receiver<()>,
         command_rx: mpsc::Receiver<RouteRunnerCommand>,
@@ -42,6 +82,7 @@ impl RouteRunner {
         Self {
             name,
             route,
+            global_config,
             barrier,
             shutdown_rx,
             command_rx,
@@ -53,13 +94,14 @@ impl RouteRunner {
         let RouteRunner {
             name,
             route,
+            global_config,
             barrier,
             mut shutdown_rx,
             mut command_rx,
         } = self;
 
         info!("Initializing route {}", name);
-        let dedup_store = Self::setup_deduplication(&name, &mut shutdown_rx).await;
+        let dedup_store = Self::setup_deduplication(&global_config, &name, &mut shutdown_rx).await;
         // Take ownership of the command receiver. It cannot be cloned.
         loop {
             // Check for shutdown before attempting to connect.
@@ -115,14 +157,24 @@ impl RouteRunner {
             barrier.wait().await;
 
             info!("Route connected. Starting message processing.");
+            let route_metrics = Arc::new(RouteMetrics {
+                enabled: global_config.metrics.enabled,
+                messages_received: counter!("bridge_messages_received_total", "route" => name.clone()),
+                messages_sent: counter!("bridge_messages_sent_total", "route" => name.clone()),
+                messages_duplicate: counter!("bridge_messages_duplicate_total", "route" => name.clone()),
+                messages_dlq: counter!("bridge_messages_dlq_total", "route" => name.clone()),
+                processing_duration: histogram!("bridge_message_processing_duration_seconds", "route" => name.clone()),
+            });
+
+
             let processing_result = Self::process_messages(
-                &name,
                 &route,
                 &mut shutdown_rx,
                 consumer,
                 publisher,
                 dlq_publisher,
                 dedup_store.clone(),
+                route_metrics.clone(),
                 command_rx,
             )
             .await;
@@ -180,156 +232,124 @@ impl RouteRunner {
     /// The main loop for receiving, processing, and acknowledging messages.
     #[allow(clippy::too_many_arguments)]
     async fn process_messages(
-        name: &str,
         route: &Route,
         shutdown_rx: &mut watch::Receiver<()>,
-        consumer: Box<dyn MessageConsumer>,
+        mut consumer: Box<dyn MessageConsumer>,
         publisher: Arc<dyn MessagePublisher>,
         dlq_publisher: Option<Arc<dyn MessagePublisher>>,
         dedup_store: Arc<DeduplicationStore>,
+        metrics_store: Arc<RouteMetrics>,
         mut command_rx: mpsc::Receiver<RouteRunnerCommand>,
     ) -> Result<(), (anyhow::Error, mpsc::Receiver<RouteRunnerCommand>)> {
         let concurrency = route.concurrency.unwrap_or(10);
+        let (work_tx, work_rx) =
+            async_channel::bounded::<(CanonicalMessage, CommitFunc)>(concurrency * 2);
 
-        // For I/O-bound consumers, wrap them in a BufferedConsumer to pre-fetch
-        // messages and improve performance. For in-memory consumers, which are
-        // already fast, adding another buffer is unnecessary overhead.
-        let consumer = if consumer.as_any().is::<crate::endpoints::memory::MemoryConsumer>() {
-            info!("Using direct MemoryConsumer for maximum performance.");
-            consumer
-        } else {
-            if consumer.as_any().is::<crate::consumers::BufferedConsumer>() {
-                consumer
-            } else {
-                info!("Wrapping I/O-bound consumer in a BufferedConsumer for improved performance.");
-                // Use concurrency * 2 as a heuristic for a good buffer size.
-                Box::new(crate::consumers::BufferedConsumer::new(
-                    consumer,
-                    concurrency * 2,
-                ))
-            }
-        };
-
-        let consumer = Arc::new(Mutex::new(consumer));
-        let mut tasks = JoinSet::new();
-
-        // --- Message Worker Tasks ---
-        // Spawn a pool of workers to process messages concurrently.
+        let mut worker_tasks = JoinSet::new();
         let deduplication_enabled = route.deduplication_enabled;
+
+        // --- Spawn Worker Pool ---
         for _ in 0..concurrency {
-            let route_name = name.to_string();
             let dedup = dedup_store.clone();
             let publisher = publisher.clone();
             let dlq_publisher = dlq_publisher.clone();
-            let consumer = consumer.clone();
-            let mut worker_shutdown_rx = shutdown_rx.clone();
+            let work_rx = work_rx.clone();
+            let metrics_store = metrics_store.clone();
 
-            tasks.spawn(async move {
-                // Each worker task runs a loop, processing messages until the channel is closed.
-                loop {
-                    let mut guard = tokio::select! {
-                        biased;
-                        _ = worker_shutdown_rx.changed() => {
-                            info!("Shutdown signal received in worker. Exiting.");
-                            break;
-                        }
-                        guard = consumer.lock() => guard,
-                    };
-
-                    let result = guard.receive().await;
-
-                    let (message, commit_fn) = match result {
-                        Ok(data) => data,
-                        Err(e) => {
-                            // The consumer has failed or the stream has ended (e.g., EOF).
-                            // This worker's job is done.
-                            if !e.to_string().contains("BufferedConsumer channel has been closed") {
-                                trace!(error = %e, "Consumer failed, worker exiting.");
-                            } else {
-                                trace!("Consumer stream ended, worker exiting.");
-                            }
-                            break;
-                        }
-                    };
-                    trace!(msg_id = %message.message_id, "Worker picked up message from channel.");
-
-                    let msg_id = message.message_id;
-                    let start_time = std::time::Instant::now();
-
-                    if deduplication_enabled && dedup.is_duplicate(&msg_id).unwrap_or(false) {
-                        trace!(%msg_id, "Duplicate message, skipping.");
-                        counter!("bridge_messages_duplicate_total", "route" => route_name.clone()).increment(1);
-                        commit_fn(None).await; // Acknowledge the duplicate
-                        continue;
-                    }
-
-                    counter!("bridge_messages_received_total", "route" => route_name.clone()).increment(1);
-
-                    trace!(%msg_id, "Sending message to publisher.");
-                    match publisher.send(message.clone()).await {
-                        Ok(response) => {
-                            histogram!("bridge_message_processing_duration_seconds", "route" => route_name.clone()).record(start_time.elapsed().as_secs_f64());
-                            counter!("bridge_messages_sent_total", "route" => route_name.clone()).increment(1);
-                            trace!(%msg_id, "Message sent successfully.");
-                            commit_fn(response).await;
-                        }
-                        Err(e) => {
-                            error!(%msg_id, error = %e, "Failed to send message, attempting DLQ.");
-                            counter!("bridge_messages_dlq_total", "route" => route_name.clone()).increment(1);
-                            if let Some(dlq) = dlq_publisher.clone() {
-                                if let Err(dlq_err) = dlq.send(message).await {
-                                    error!(%msg_id, error = %dlq_err, "Failed to send message to DLQ.");
-                                }
-                            }
-                            commit_fn(None).await; // Acknowledge after DLQ attempt
-                        }
-                    }
+            worker_tasks.spawn(async move {
+                while let Ok((message, commit_fn)) = work_rx.recv().await {
+                    Self::process_single_message(
+                        deduplication_enabled,
+                        &metrics_store,
+                        &dedup,
+                        &publisher,
+                        &dlq_publisher,
+                        message,
+                        commit_fn,
+                    )
+                    .await;
                 }
-                Ok(())
             });
         }
 
+        // --- Spawn Single Consumer Task ---
+        let mut consumer_shutdown_rx = shutdown_rx.clone();
+        let mut consumer_task: JoinHandle<Result<(), anyhow::Error>> = tokio::spawn(async move {
+            loop {
+                let received = tokio::select! {
+                    biased;
+                    _ = consumer_shutdown_rx.changed() => {
+                        info!("Shutdown signal received in consumer task. Exiting.");
+                        break;
+                    }
+                    res = consumer.receive() => res,
+                };
+
+                match received {
+                    Ok((message, commit_fn)) => {
+                        if work_tx.send((message, commit_fn)).await.is_err() {
+                            info!("Work channel closed, consumer task stopping.");
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        if !e.to_string().contains("BufferedConsumer channel has been closed") {
+                            info!(error = %e, "Underlying consumer failed. Stopping consumer task.");
+                        } else {
+                            info!("Consumer stream ended (e.g. EOF). Stopping consumer task.");
+                        }
+                        return Err(e); // Propagate error to signal completion/failure
+                    }
+                }
+            }
+            Ok(())
+        });
+
         // --- Main Processing and Command Loop ---
-        let mut flush_interval = tokio::time::interval(Duration::from_millis(100));
+        let mut flush_interval = tokio::time::interval(Duration::from_millis(500));
         'main_loop: loop {
             tokio::select! {
+                // Prioritize shutdown signal
+                _ = shutdown_rx.changed() => {
+                    info!("Shutdown signal received in main loop. Draining route.");
+                    break 'main_loop;
+                }
                 // Handle commands for this route
                 Some(command) = command_rx.recv() => {
                     match command {
                         RouteRunnerCommand::Flush => {
                             trace!("Manual flush command received.");
-                            Self::flush_publishers(publisher.clone(), dlq_publisher.clone()).await;
+                            Self::flush_publishers(&publisher, &dlq_publisher).await;
                         }
                     }
                 },
                 // Handle periodic flushing
                 _ = flush_interval.tick() => {
                     trace!("Periodic flush triggered.");
-                    Self::flush_publishers(publisher.clone(), dlq_publisher.clone()).await;
+                    Self::flush_publishers(&publisher, &dlq_publisher).await;
                 },
-                // Check for task completion or failure
-                Some(res) = tasks.join_next() => {
+                // Check if the consumer task has finished (e.g., EOF or error)
+                res = &mut consumer_task => {
                     match res {
-                        Ok(Ok(())) => {
-                            trace!("A worker task finished gracefully.");
-                            // If all workers have finished, we can exit the main loop.
-                            if tasks.is_empty() {
-                                info!("All worker tasks have completed.");
-                                break 'main_loop;
-                            }
-                        },
-                        Ok(Err(e)) => {
-                            error!(error = %e, "A consumer task finished with an error.");
-                            tasks.abort_all();
-                            return Err((e, command_rx));
-                        },
+                        Ok(Ok(())) => info!("Consumer task finished gracefully."),
+                        Ok(Err(_)) => info!("Consumer task finished due to stream end or error."),
+                        Err(e) => error!(error = %e, "Consumer task panicked!"),
+                    }
+                    // The consumer is done, so we can stop the main loop.
+                    // Workers will finish when the channel is empty.
+                    break 'main_loop;
+                },
+                // Check for worker task completion (should not happen unless there's a panic)
+                Some(res) = worker_tasks.join_next() => {
+                    match res {
+                        Ok(_) => trace!("A worker task finished."),
                         Err(join_err) if join_err.is_cancelled() => {
                             trace!("A task was cancelled.");
                         },
                         Err(join_err) => {
                             error!(error = %join_err, "A route task panicked.");
                             let panic_err = anyhow::anyhow!("A route task panicked: {}", join_err);
-                            tasks.abort_all();
+                            worker_tasks.abort_all();
                             return Err((panic_err, command_rx));
                         }
                     }
@@ -341,8 +361,9 @@ impl RouteRunner {
             }
         }
 
-        info!("Shutting down and waiting for all worker tasks to complete.");
-        tasks.shutdown().await;
+        info!("Route processing loop finished. Shutting down workers.");
+        consumer_task.abort(); // Ensure consumer task is stopped
+        worker_tasks.shutdown().await;
 
         // After all tasks are done, explicitly flush the publisher to ensure all buffered
         // messages are written before the route runner exits. This is crucial for file-based
@@ -359,9 +380,51 @@ impl RouteRunner {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
+    async fn process_single_message(
+        deduplication_enabled: bool,
+        metrics_store: &Arc<RouteMetrics>,
+        dedup: &Arc<DeduplicationStore>,
+        publisher: &Arc<dyn MessagePublisher>,
+        dlq_publisher: &Option<Arc<dyn MessagePublisher>>,
+        message: CanonicalMessage,
+        commit_fn: CommitFunc,
+    ) {
+        let msg_id = message.message_id;
+        let start_time = std::time::Instant::now();
+
+        if deduplication_enabled && dedup.is_duplicate(&msg_id).unwrap_or(false) {
+            trace!(%msg_id, "Duplicate message, skipping.");
+            metrics_store.inc_duplicates(1);       
+            commit_fn(None).await; // Acknowledge the duplicate
+            return;
+        }
+        metrics_store.inc_received(1);
+  
+        trace!(%msg_id, "Sending message to publisher.");
+        match publisher.send(message.clone()).await {
+            Ok(response) => {
+                metrics_store.duration(start_time.elapsed().as_secs_f64());
+                metrics_store.inc_sent(1);
+                trace!(%msg_id, "Message sent successfully.");
+                commit_fn(response).await;
+            }
+            Err(e) => {
+                error!(%msg_id, error = %e, "Failed to send message, attempting DLQ.");
+                metrics_store.inc_dlq(1);
+                if let Some(dlq) = dlq_publisher {
+                    if let Err(dlq_err) = dlq.send(message).await {
+                        error!(%msg_id, error = %dlq_err, "Failed to send message to DLQ.");
+                    }
+                }
+                commit_fn(None).await; // Acknowledge after DLQ attempt
+            }
+        }
+    }
+
     async fn flush_publishers(
-        publisher: Arc<dyn MessagePublisher>,
-        dlq_publisher: Option<Arc<dyn MessagePublisher>>,
+        publisher: &Arc<dyn MessagePublisher>,
+        dlq_publisher: &Option<Arc<dyn MessagePublisher>>,
     ) {
         if let Err(e) = publisher.flush().await {
             error!(error = %e, "Failed to flush publisher");
@@ -374,13 +437,13 @@ impl RouteRunner {
     }
 
     async fn setup_deduplication(
+        global_config: &Config,
         name: &str,
         shutdown_rx: &mut watch::Receiver<()>,
     ) -> Arc<DeduplicationStore> {
-        // The sled_path should come from a global config, but for now, we'll hardcode a temp path.
-        let db_path = Path::new("/tmp/streamqueue/db").join(name);
+        let db_path = Path::new(&global_config.sled_path).join(name);
         let dedup_store = Arc::new(
-            DeduplicationStore::new(db_path, 86400) // Default TTL
+            DeduplicationStore::new(db_path, global_config.dedup_ttl_seconds)
                 .expect("Failed to create instance-specific deduplication store"),
         );
 

@@ -10,14 +10,15 @@ use crate::publishers::MessagePublisher;
 use anyhow::anyhow;
 use async_channel::{bounded, Receiver, Sender};
 use async_trait::async_trait;
-use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use std::any::Any;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use tracing::info;
 
 /// A map to hold memory channels for the duration of the bridge setup.
 /// This allows a consumer and publisher in different routes to connect to the same in-memory topic.
-static RUNTIME_MEMORY_CHANNELS: Lazy<DashMap<String, MemoryChannel>> = Lazy::new(DashMap::new);
+static RUNTIME_MEMORY_CHANNELS: Lazy<Mutex<HashMap<String, MemoryChannel>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// A shareable, thread-safe, in-memory channel for testing.
 ///
@@ -90,8 +91,9 @@ impl MemoryChannel {
 
 /// Gets a shared `MemoryChannel` for a given topic, creating it if it doesn't exist.
 pub fn get_or_create_channel(config: &MemoryConfig) -> MemoryChannel {
-    RUNTIME_MEMORY_CHANNELS
-        .entry(config.topic.clone())
+    let mut channels = RUNTIME_MEMORY_CHANNELS.lock().unwrap();
+    channels
+        .entry(config.topic.clone()) // Use the HashMap's entry API
         .or_insert_with(|| {
             info!(topic = %config.topic, "Creating new runtime memory channel");
             dbg!(config.capacity);

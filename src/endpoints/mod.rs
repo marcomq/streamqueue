@@ -11,10 +11,9 @@ pub mod http;
 pub mod kafka;
 #[cfg(feature = "mqtt")]
 pub mod mqtt;
-#[cfg(feature = "memory")]
-pub mod memory;
 #[cfg(feature = "nats")]
 pub mod nats;
+pub mod memory;
 pub mod file;
 pub mod static_endpoint;
 
@@ -25,7 +24,6 @@ use crate::consumers::MessageConsumer;
 use crate::publishers::MessagePublisher;
 use anyhow::{anyhow, Result};
 use std::sync::Arc;
-use tracing::info;
 
 /// Creates a `MessageConsumer` based on the route's "in" configuration.
 pub async fn create_consumer_from_route(
@@ -78,10 +76,13 @@ pub async fn create_consumer_from_route(
         ConsumerEndpointType::Static(cfg) => {
             Ok(Box::new(static_endpoint::StaticRequestConsumer::new(cfg)?))
         }
-        #[cfg(feature = "memory")]
         ConsumerEndpointType::Memory(cfg) => {
             Ok(Box::new(memory::MemoryConsumer::new(&memory::get_or_create_channel(&cfg.config))))
         }
+        _ => Err(anyhow!(
+            "[route:{}] Unsupported consumer endpoint type",
+            route_name
+        )),
     }
 }
 
@@ -134,10 +135,13 @@ pub async fn create_publisher_from_route(
         PublisherEndpointType::Static(cfg) => Ok(Arc::new(
             static_endpoint::StaticEndpointPublisher::new(cfg)?,
         )),
-        #[cfg(feature = "memory")]
         PublisherEndpointType::Memory(cfg) => {
             Ok(Arc::new(memory::MemoryPublisher::new(&memory::get_or_create_channel(&cfg.config))))
         }
+        _ => Err(anyhow!(
+            "[route:{}] Unsupported publisher endpoint type",
+            route_name
+        )),
     }
 }
 

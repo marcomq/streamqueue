@@ -36,12 +36,12 @@ mod tests {
     use std::sync::Mutex;
 
     // A global mutex to ensure that tests modifying the environment run serially.
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+    static _ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_config_from_env_vars() {
         // Lock the mutex to ensure this test has exclusive access to the environment variables.
-        let _guard = ENV_MUTEX.lock().unwrap();
+        let _guard = _ENV_MUTEX.lock().unwrap();
         // Clear the var first to avoid interference from other tests
         unsafe {
             std::env::remove_var("BRIDGE__LOG_LEVEL");

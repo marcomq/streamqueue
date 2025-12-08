@@ -56,7 +56,7 @@ impl Bridge {
         let mut shutdown_rx = self.shutdown_rx.clone();
         let routes = self.config.routes.clone();
         let runners = self.runners.clone();
-
+        let global_config = self.config.clone();
         tokio::spawn(async move {
             info!("Bridge starting up...");
             let mut route_tasks = JoinSet::new();
@@ -67,7 +67,7 @@ impl Bridge {
                 let (runner_tx, runner_rx) = mpsc::channel(1);
                 runners.lock().await.insert(name.clone(), runner_tx);
                 let route_runner =
-                    RouteRunner::new(name, route, barrier.clone(), shutdown_rx.clone(), runner_rx);
+                    RouteRunner::new(name, route, global_config.clone(), barrier.clone(), shutdown_rx.clone(), runner_rx);
                 route_tasks.spawn(route_runner.run());
             }
 

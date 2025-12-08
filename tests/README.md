@@ -5,3 +5,7 @@ Alternatively, you can use this to start a test bridge manually from project roo
 docker-compose -f tests/docker-compose.integration.yml up -d
 CONFIG_FILE=tests/config.integration.yml cargo run
 ```
+
+###
+Internal memory performance test:
+`cargo test --test memory_test --features integration-test  --release -- --nocapture`

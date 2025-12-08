@@ -181,17 +181,11 @@ pub struct ConsumerEndpoint {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum PublisherEndpointType {
-    #[cfg(feature = "kafka")]
     Kafka(KafkaPublisherEndpoint),
-    #[cfg(feature = "nats")]
     Nats(NatsPublisherEndpoint),
-    #[cfg(feature = "amqp")]
     Amqp(AmqpPublisherEndpoint),
-    #[cfg(feature = "mqtt")]
     Mqtt(MqttPublisherEndpoint),
-    #[cfg(feature = "http")]
     Http(HttpPublisherEndpoint),
-    #[cfg(feature = "memory")]
     Memory(MemoryPublisherEndpoint),
     File(FilePublisherEndpoint),
     Static(StaticEndpoint),
@@ -210,17 +204,11 @@ pub struct Route {
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum ConsumerEndpointType {
-    #[cfg(feature = "kafka")]
     Kafka(KafkaConsumerEndpoint),
-    #[cfg(feature = "nats")]
     Nats(NatsConsumerEndpoint),
-    #[cfg(feature = "amqp")]
     Amqp(AmqpConsumerEndpoint),
-    #[cfg(feature = "mqtt")]
     Mqtt(MqttConsumerEndpoint),
-    #[cfg(feature = "http")]
     Http(HttpConsumerEndpoint),
-    #[cfg(feature = "memory")]
     Memory(MemoryConsumerEndpoint),
     File(FileConsumerEndpoint),
     Static(StaticEndpoint),
