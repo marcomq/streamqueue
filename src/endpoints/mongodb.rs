@@ -38,9 +38,9 @@ impl TryFrom<MongoMessageRaw> for CanonicalMessage {
             .context("Failed to deserialize metadata from BSON document")?;
 
         Ok(CanonicalMessage {
-                message_id: raw.message_id as u64,
-                payload: raw.payload.bytes,
-                metadata,
+            message_id: raw.message_id as u64,
+            payload: raw.payload.bytes,
+            metadata,
         })
     }
 }
@@ -74,8 +74,8 @@ impl MessagePublisher for MongoDbPublisher {
         let doc = doc! {
             "_id": object_id,
             "message_id": msg_with_metadata.message_id as i64, // Convert u64 to i64
-            "payload": Bson::Binary(mongodb::bson::Binary { 
-                subtype: mongodb::bson::spec::BinarySubtype::Generic, 
+            "payload": Bson::Binary(mongodb::bson::Binary {
+                subtype: mongodb::bson::spec::BinarySubtype::Generic,
                 bytes: msg_with_metadata.payload.clone() }),
             "metadata": to_document(&msg_with_metadata.metadata)?,
             "locked_until": null
@@ -163,7 +163,7 @@ impl MessageConsumer for MongoDbConsumer {
                 ]
             };
             let update = doc! { "$set": { "locked_until": locked_until } };
-            
+
             // Projection to only return the fields we need, reducing data over the wire.
             let projection = doc! {
                 "message_id": 1,

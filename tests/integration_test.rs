@@ -92,4 +92,3 @@ async fn test_nats_performance_direct() {
 async fn test_mongodb_performance_direct() {
     integration::mongodb::test_mongodb_performance_direct().await;
 }
-
