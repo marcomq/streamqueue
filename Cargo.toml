@@ -37,12 +37,11 @@ url = "2.5"
 
 # Data & Serialization
 serde_json = "1.0"
+# Metrics
+metrics = { version = "0.24" }
 
 # Storage for Deduplication
 sled = { version = "0.34", optional = true }
-
-# Metrics
-metrics = { version = "0.24", optional = true }
 
 # --- Optional Endpoint Dependencies ---
 
@@ -88,8 +87,8 @@ tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 
 [features]
 default = ["core"]
-core = ["metrics-all", "dedup", "dotenv", "mongodb"]
-full = ["metrics-all", "dedup", "dotenv", "mongodb", "kafka", "amqp", "nats", "mqtt", "http"]
+core = ["dedup", "dotenv", "mongodb"]
+full = ["dedup", "dotenv", "mongodb", "kafka", "amqp", "nats", "mqtt", "http"]
 
 # Endpoint features
 kafka = ["rdkafka", "async-stream"]
@@ -101,7 +100,6 @@ http = ["axum", "reqwest", "axum-server", "rustls", "tokio-rustls", "rustls-pemf
 file = [] # No extra deps
 
 # Functionality features
-metrics-all = ["metrics"]
 dedup = ["sled"]
 dotenv = ["dotenvy"]
 
@@ -110,4 +108,4 @@ integration-test = []
 [[test]]
 name = "integration_test"
 harness = true # Use the standard test harness
-required-features = ["integration-test", "full", "metrics-all"]
+required-features = ["integration-test"]

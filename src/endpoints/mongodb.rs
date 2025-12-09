@@ -13,19 +13,13 @@ use mongodb::{
 use mongodb::{
     change_stream::event::ChangeStreamEvent,
     options::{FindOneAndUpdateOptions, ReturnDocument},
+    IndexModel,
 };
 use mongodb::{Client, Collection};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::time::{Duration, SystemTime};
-use tracing::{debug, info, warn};
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MongoMessageInternal {
-    #[serde(flatten)]
-    msg: CanonicalMessage,
-    locked_until: Option<i64>,
-}
+use tracing::{info, warn};
 
 /// A helper struct for deserialization that matches the BSON structure exactly.
 /// The payload is read as a BSON Binary type, which we then manually convert.
@@ -34,24 +28,19 @@ struct MongoMessageRaw {
     message_id: i64,
     payload: Binary,
     metadata: Document,
-    locked_until: Option<i64>,
 }
 
-impl TryFrom<MongoMessageRaw> for MongoMessageInternal {
+impl TryFrom<MongoMessageRaw> for CanonicalMessage {
     type Error = anyhow::Error;
 
     fn try_from(raw: MongoMessageRaw) -> Result<Self, Self::Error> {
         let metadata = mongodb::bson::from_document(raw.metadata)
             .context("Failed to deserialize metadata from BSON document")?;
 
-        Ok(MongoMessageInternal {
-            // BSON uses i64, our model uses u64. We cast, assuming IDs are positive.
-            msg: CanonicalMessage {
+        Ok(CanonicalMessage {
                 message_id: raw.message_id as u64,
                 payload: raw.payload.bytes,
                 metadata,
-            },
-            locked_until: raw.locked_until,
         })
     }
 }
@@ -74,33 +63,25 @@ impl MongoDbPublisher {
 #[async_trait]
 impl MessagePublisher for MongoDbPublisher {
     async fn send(&self, message: CanonicalMessage) -> anyhow::Result<Option<CanonicalMessage>> {
-        let mut msg_with_metadata = message.clone();
+        let object_id = mongodb::bson::oid::ObjectId::new();
+        let mut msg_with_metadata = message;
+        msg_with_metadata
+            .metadata
+            .insert("mongodb_object_id".to_string(), object_id.to_string());
 
         // Manually construct the document to handle u64 message_id for BSON.
         // BSON only supports i64, so we do a wrapping conversion.
         let doc = doc! {
-            "message_id": message.message_id as i64, // Convert u64 to i64
-            "payload": Bson::Binary(mongodb::bson::Binary { subtype: mongodb::bson::spec::BinarySubtype::Generic, bytes: message.payload }),
-            "metadata": to_document(&message.metadata)?,
+            "_id": object_id,
+            "message_id": msg_with_metadata.message_id as i64, // Convert u64 to i64
+            "payload": Bson::Binary(mongodb::bson::Binary { 
+                subtype: mongodb::bson::spec::BinarySubtype::Generic, 
+                bytes: msg_with_metadata.payload.clone() }),
+            "metadata": to_document(&msg_with_metadata.metadata)?,
             "locked_until": null
         };
 
-        let result = self.collection.insert_one(doc.clone()).await?;
-        let object_id = result
-            .inserted_id
-            .as_object_id()
-            .ok_or_else(|| anyhow!("Could not get inserted_id as ObjectId"))?;
-
-        // Add the mongodb_object_id to the message headers
-        msg_with_metadata
-            .metadata
-            .insert("mongodb_object_id".to_string(), object_id.to_string());
-        self.collection
-            .update_one(
-                doc! {"_id": object_id},
-                doc! {"$set": {"metadata": to_document(&msg_with_metadata.metadata)?}},
-            )
-            .await?;
+        self.collection.insert_one(doc).await?;
 
         Ok(Some(msg_with_metadata))
     }
@@ -125,6 +106,14 @@ impl MongoDbConsumer {
 
         let db = client.database(&config.database);
         let collection = db.collection(collection_name);
+
+        // Create an index on `locked_until` to speed up finding available messages.
+        // This is an idempotent operation, so it's safe to run on every startup.
+        info!(collection = %collection_name, "Ensuring 'locked_until' index exists...");
+        let index_model = IndexModel::builder()
+            .keys(doc! { "locked_until": 1 })
+            .build();
+        collection.create_index(index_model).await?;
 
         // Attempt to create a change stream. If it fails because it's a standalone instance,
         // fall back to polling.
@@ -174,8 +163,19 @@ impl MessageConsumer for MongoDbConsumer {
                 ]
             };
             let update = doc! { "$set": { "locked_until": locked_until } };
+            
+            // Projection to only return the fields we need, reducing data over the wire.
+            let projection = doc! {
+                "message_id": 1,
+                "payload": 1,
+                "metadata": 1,
+                "_id": 1
+            };
+
             let options = FindOneAndUpdateOptions::builder()
-                .return_document(ReturnDocument::After)
+                .projection(projection)
+                .sort(doc! { "_id": 1 }) // Process oldest documents first (FIFO)
+                .return_document(ReturnDocument::Before) // Return the document before the lock is applied
                 .build();
 
             match self
@@ -187,7 +187,7 @@ impl MessageConsumer for MongoDbConsumer {
                 Ok(Some(doc)) => {
                     let raw_msg: MongoMessageRaw = mongodb::bson::from_document(doc.clone())
                         .context("Failed to deserialize MongoDB document")?;
-                    let msg: MongoMessageInternal = raw_msg.try_into()?;
+                    let msg: CanonicalMessage = raw_msg.try_into()?;
 
                     let object_id = doc
                         .get_object_id("_id")
@@ -201,7 +201,7 @@ impl MessageConsumer for MongoDbConsumer {
                             match collection_clone.delete_one(doc! { "_id": object_id }).await {
                                 Ok(delete_result) => {
                                     if delete_result.deleted_count == 1 {
-                                        debug!(mongodb_object_id = %object_id, "MongoDB message acknowledged and deleted");
+                                        tracing::trace!(mongodb_object_id = %object_id, "MongoDB message acknowledged and deleted");
                                     } else {
                                         warn!(mongodb_object_id = %object_id, "Attempted to ack/delete MongoDB message, but it was not found (already deleted?)");
                                     }
@@ -213,7 +213,7 @@ impl MessageConsumer for MongoDbConsumer {
                         }) as BoxFuture<'static, ()>
                     });
 
-                    return Ok((msg.msg, commit));
+                    return Ok((msg, commit));
                 }
                 Ok(None) => {
                     // No available messages, wait for a new one to be inserted.
