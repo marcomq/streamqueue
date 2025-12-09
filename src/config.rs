@@ -94,6 +94,14 @@ pub struct MemoryConfig {
     pub capacity: Option<usize>,
 }
 
+#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+pub struct MongoDbConfig {
+    pub url: String,
+    pub database: String,
+    #[serde(default = "default_true")]
+    pub await_ack: bool,
+}
+
 impl TlsConfig {
     /// Checks if client-side mTLS is configured.
     pub fn is_mtls_client_configured(&self) -> bool {
@@ -122,6 +130,7 @@ pub enum ConnectionType {
     Http(HttpConfig),
     Static(StaticEndpoint),
     Memory(MemoryConfig),
+    MongoDb(MongoDbConfig),
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
@@ -162,6 +171,11 @@ pub struct StaticEndpoint {
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct MemoryEndpoint {}
 
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+pub struct MongoDbEndpoint {
+    pub collection: Option<String>,
+}
+
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub struct PublisherEndpoint {
@@ -185,6 +199,7 @@ pub enum PublisherEndpointType {
     Nats(NatsPublisherEndpoint),
     Amqp(AmqpPublisherEndpoint),
     Mqtt(MqttPublisherEndpoint),
+    MongoDb(MongoDbPublisherEndpoint),
     Http(HttpPublisherEndpoint),
     Memory(MemoryPublisherEndpoint),
     File(FilePublisherEndpoint),
@@ -208,6 +223,7 @@ pub enum ConsumerEndpointType {
     Nats(NatsConsumerEndpoint),
     Amqp(AmqpConsumerEndpoint),
     Mqtt(MqttConsumerEndpoint),
+    MongoDb(MongoDbConsumerEndpoint),
     Http(HttpConsumerEndpoint),
     Memory(MemoryConsumerEndpoint),
     File(FileConsumerEndpoint),
@@ -351,11 +367,27 @@ pub struct HttpPublisherEndpoint {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct MongoDbPublisherEndpoint {
+    #[serde(flatten)]
+    pub config: MongoDbConfig,
+    #[serde(flatten)]
+    pub endpoint: MongoDbEndpoint,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct MemoryPublisherEndpoint {
     #[serde(flatten)]
     pub config: MemoryConfig,
     #[serde(flatten)]
     pub endpoint: MemoryEndpoint,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+pub struct MongoDbConsumerEndpoint {
+    #[serde(flatten)]
+    pub config: MongoDbConfig,
+    #[serde(flatten)]
+    pub endpoint: MongoDbEndpoint,
 }
 
 #[derive(Debug, Deserialize, Clone)]

@@ -53,6 +53,9 @@ async-stream = { version = "0.3", optional = true } # Used by Kafka consumer
 # AMQP (RabbitMQ)
 lapin = { version = "3.7", features = ["rustls"], optional = true }
 
+# MongoDB
+mongodb = { version = "3.4", optional = true }
+
 # NATS
 async-nats = { version = "0.45", optional = true }
 
@@ -84,15 +87,15 @@ uuid = { version = "1.19", features = ["v4"] }
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 
 [features]
-default = ["full"]
-full = [
-    "metrics-all", "dedup", "dotenv"
-]
+default = ["core"]
+core = ["metrics-all", "dedup", "dotenv", "mongodb"]
+full = ["metrics-all", "dedup", "dotenv", "mongodb", "kafka", "amqp", "nats", "mqtt", "http"]
 
 # Endpoint features
 kafka = ["rdkafka", "async-stream"]
 amqp = ["lapin", "rustls", "rustls-pemfile"]
 nats = ["async-nats", "rustls", "rustls-pemfile"]
+mongodb = ["dep:mongodb"]
 mqtt = ["rumqttc", "rustls", "tokio-rustls", "rustls-pemfile"]
 http = ["axum", "reqwest", "axum-server", "rustls", "tokio-rustls", "rustls-pemfile"]
 file = [] # No extra deps

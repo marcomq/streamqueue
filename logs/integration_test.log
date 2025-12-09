@@ -30,3 +30,9 @@
 2025-12-08T18:39:35.969728Z  INFO route{route.name=memory-pipe}: streamqueue::route_runner: Consumer stream ended (e.g., EOF). Route finished.
 2025-12-08T18:39:35.969801Z  INFO streamqueue::bridge: All routes have completed their work. Bridge shutting down.
 2025-12-08T18:39:35.969823Z  INFO streamqueue::bridge: Bridge has shut down.
+2025-12-09T17:30:40.719344Z  INFO streamqueue::endpoints::mongodb: MongoDB publisher connected database=streamqueue_test_db collection=perf_mongodb_direct
+2025-12-09T17:30:51.470165Z  WARN streamqueue::endpoints::mongodb: MongoDB is a single instance (ChangeStream support check failed). Falling back to polling for consumer.
+2025-12-09T17:30:51.470310Z  INFO streamqueue::endpoints::mongodb: MongoDB consumer connected and watching for changes database=streamqueue_test_db collection=perf_mongodb_direct
+2025-12-09T17:34:54.866790Z  INFO streamqueue::endpoints::mongodb: MongoDB publisher connected database=streamqueue_test_db collection=perf_mongodb_direct
+2025-12-09T17:35:03.174168Z  WARN streamqueue::endpoints::mongodb: MongoDB is a single instance (ChangeStream support check failed). Falling back to polling for consumer.
+2025-12-09T17:35:03.174367Z  INFO streamqueue::endpoints::mongodb: MongoDB consumer connected and watching for changes database=streamqueue_test_db collection=perf_mongodb_direct
