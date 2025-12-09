@@ -5,7 +5,7 @@ use super::common::{
     PERF_TEST_MESSAGE_COUNT,
 };
 use std::{
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 use streamqueue::endpoints::mqtt::{MqttConsumer, MqttPublisher};
@@ -47,7 +47,7 @@ pub async fn test_mqtt_performance_direct() {
         };
 
         // Create the consumer and subscribe before publishing messages.
-        let consumer = Arc::new(Mutex::new(
+        let consumer = Arc::new(tokio::sync::Mutex::new(
             MqttConsumer::new(&config, topic, &consumer_id)
                 .await
                 .unwrap(),
@@ -79,7 +79,7 @@ pub async fn test_mqtt_performance_direct() {
         // This helps prevent the broker from overwhelming the new consumer and dropping the connection.
         tokio::time::sleep(Duration::from_secs(3)).await;
 
-        measure_read_performance("MQTT", consumer, PERF_TEST_MESSAGE_COUNT_DIRECT).await;
+        measure_read_performance("MQTT", consumer, PERF_TEST_MESSAGE_COUNT_DIRECT, PERF_TEST_CONCURRENCY).await;
     })
     .await;
 }

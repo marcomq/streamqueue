@@ -87,7 +87,7 @@ tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 
 [features]
 default = ["core"]
-core = ["dedup", "dotenv", "mongodb"]
+core = ["dedup", "dotenv"]
 full = ["dedup", "dotenv", "mongodb", "kafka", "amqp", "nats", "mqtt", "http"]
 
 # Endpoint features

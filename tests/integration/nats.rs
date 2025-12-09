@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 use std::{
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 
 use super::common::{
     measure_read_performance, measure_write_performance, run_performance_pipeline_test,
-    run_pipeline_test, run_test_with_docker, setup_logging, PERF_TEST_CONCURRENCY,
+    run_pipeline_test, run_test_with_docker, setup_logging,
     PERF_TEST_MESSAGE_COUNT,
 };
 use streamqueue::endpoints::nats::{NatsConsumer, NatsPublisher};
@@ -54,12 +54,12 @@ pub async fn test_nats_performance_direct() {
 
         tokio::time::sleep(Duration::from_secs(5)).await;
 
-        let consumer = Arc::new(Mutex::new(
+        let consumer = Arc::new(tokio::sync::Mutex::new(
             NatsConsumer::new(&config, stream_name, &subject)
                 .await
                 .unwrap(),
         ));
-        measure_read_performance("NATS", consumer, PERF_TEST_MESSAGE_COUNT_DIRECT).await;
+        measure_read_performance("NATS", consumer, PERF_TEST_MESSAGE_COUNT_DIRECT, PERF_TEST_CONCURRENCY).await;
     })
     .await;
 }

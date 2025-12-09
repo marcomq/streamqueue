@@ -30,7 +30,7 @@ pub struct TestMetrics {
 impl TestMetrics {
     pub fn new() -> Self {
         let recorder = DebuggingRecorder::new();
-        let snapshotter = recorder.snapshotter();
+        let snapshotter = recorder.snapshotter(); 
         metrics::set_global_recorder(recorder).expect("Failed to install testing recorder");
         Self {
             snapshotter,
@@ -40,7 +40,7 @@ impl TestMetrics {
 
     pub fn get_cumulative_counter(&self, name: &str, route: &str) -> u64 {
         let snapshot = self.snapshotter.snapshot();
-        let mut cumulative_counters = self.cumulative_counters.lock().unwrap();
+        let mut cumulative_counters = self.cumulative_counters.lock().unwrap(); 
         for (key, _, _, value) in snapshot.into_vec() {
             if key.kind() == MetricKind::Counter && key.key().name() == name {
                 if key
@@ -493,28 +493,52 @@ impl MessageConsumer for MockConsumer {
 
 pub async fn measure_read_performance(
     name: &str,
-    consumer: Arc<Mutex<dyn MessageConsumer>>,
+    consumer: Arc<tokio::sync::Mutex<dyn MessageConsumer>>,
     num_messages: usize,
+    concurrency: usize,
 ) {
     println!("\n--- Measuring Read Performance for {} ---", name);
+    let messages_to_receive = Arc::new(tokio::sync::Semaphore::new(num_messages));
     let start_time = Instant::now();
 
-    for i in 0..num_messages {
-        match consumer.lock().unwrap().receive().await {
-            Ok((_, commit)) => {
-                commit(None).await;
+    let mut tasks = tokio::task::JoinSet::new();
+
+    for _ in 0..concurrency {
+        let consumer_clone = consumer.clone();
+        let semaphore_clone = messages_to_receive.clone();
+
+        tasks.spawn(async move {
+            loop {
+                // Use `try_acquire` to avoid blocking forever.
+                // If there are no more permits, the worker's job is done.
+                match semaphore_clone.try_acquire() {
+                    Ok(permit) => {
+                        permit.forget();
+                    }
+                    Err(_) => {
+                        break; // No more permits, exit the loop.
+                    }
+                }
+                if semaphore_clone.try_acquire().is_err() {
+                    break; // No more permits, exit the loop.
+                }
+
+                match consumer_clone.lock().await.receive().await {
+                    Ok((_, commit)) => {
+                        // Spawn the commit to a separate task to allow the worker
+                        // to immediately start receiving the next message.
+                        tokio::spawn(async move { commit(None).await; });
+                    }
+                    Err(e) => {
+                        eprintln!("Error receiving message: {}. Worker stopping.", e);
+                        break; // Exit on consumer error.
+                    }
+                }
             }
-            Err(e) => {
-                eprintln!(
-                    "Error receiving message {}/{}: {}. Stopping test.",
-                    i + 1,
-                    num_messages,
-                    e
-                );
-                break;
-            }
-        }
+        });
     }
+
+    while tasks.join_next().await.is_some() {}
 
     let duration: Duration = start_time.elapsed();
     let msgs_per_sec = num_messages as f64 / duration.as_secs_f64();

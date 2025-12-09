@@ -5,7 +5,7 @@ use super::common::{
     PERF_TEST_MESSAGE_COUNT,
 };
 use std::{
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 use streamqueue::endpoints::amqp::{AmqpConsumer, AmqpPublisher};
@@ -49,8 +49,8 @@ pub async fn test_amqp_performance_direct() {
 
         tokio::time::sleep(Duration::from_secs(10)).await;
 
-        let consumer = Arc::new(Mutex::new(AmqpConsumer::new(&config, queue).await.unwrap()));
-        measure_read_performance("AMQP", consumer, PERF_TEST_MESSAGE_COUNT_DIRECT).await;
+        let consumer = Arc::new(tokio::sync::Mutex::new(AmqpConsumer::new(&config, queue).await.unwrap()));
+        measure_read_performance("AMQP", consumer, PERF_TEST_MESSAGE_COUNT_DIRECT, PERF_TEST_CONCURRENCY).await;
     })
     .await;
 }

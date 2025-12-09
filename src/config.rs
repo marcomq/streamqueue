@@ -98,8 +98,6 @@ pub struct MemoryConfig {
 pub struct MongoDbConfig {
     pub url: String,
     pub database: String,
-    #[serde(default = "default_true")]
-    pub await_ack: bool,
 }
 
 impl TlsConfig {

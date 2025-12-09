@@ -12,11 +12,11 @@ use mongodb::{
 };
 use mongodb::{
     change_stream::event::ChangeStreamEvent,
-    options::{FindOneAndUpdateOptions, ReturnDocument},
+    options::FindOneAndUpdateOptions,
     IndexModel,
 };
 use mongodb::{Client, Collection};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::any::Any;
 use std::time::{Duration, SystemTime};
 use tracing::{info, warn};
@@ -138,7 +138,7 @@ impl MongoDbConsumer {
         Ok(Self {
             collection,
             change_stream,
-            polling_interval: Duration::from_secs(1),
+            polling_interval: Duration::from_millis(100),
         })
     }
 }
@@ -175,7 +175,6 @@ impl MessageConsumer for MongoDbConsumer {
             let options = FindOneAndUpdateOptions::builder()
                 .projection(projection)
                 .sort(doc! { "_id": 1 }) // Process oldest documents first (FIFO)
-                .return_document(ReturnDocument::Before) // Return the document before the lock is applied
                 .build();
 
             match self
