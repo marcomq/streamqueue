@@ -8,11 +8,28 @@ use std::{sync::Arc, time::Duration};
 use streamqueue::endpoints::kafka::{KafkaConsumer, KafkaPublisher};
 
 const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
+const CONFIG_YAML: &str = r#"""
+sled_path: "/tmp/integration_test_db_kafka"
+dedup_ttl_seconds: 60
+
+routes:
+  memory_to_kafka:
+    in:
+      memory: { topic: "kafka-test-in" }
+    out:
+      kafka: { brokers: "localhost:9092", topic: "test_topic_kafka" }
+
+  kafka_to_memory:
+    in:
+      kafka: { brokers: "localhost:9092", topic: "test_topic_kafka", group_id: "test_group" }
+    out:
+      memory: { topic: "kafka-test-out" }
+"""#;
 
 pub async fn test_kafka_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/kafka.yml", || async {
-        run_pipeline_test("kafka", "tests/integration/config/kafka.yml").await;
+        run_pipeline_test("kafka", CONFIG_YAML).await;
     })
     .await;
 }
@@ -22,7 +39,7 @@ pub async fn test_kafka_performance_pipeline() {
     run_test_with_docker("tests/integration/docker-compose/kafka.yml", || async {
         run_performance_pipeline_test(
             "kafka",
-            "tests/integration/config/kafka.yml",
+            CONFIG_YAML,
             PERF_TEST_MESSAGE_COUNT,
         )
         .await;

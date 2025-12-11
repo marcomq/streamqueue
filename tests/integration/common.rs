@@ -1,7 +1,6 @@
 #![allow(dead_code)] // This module contains helpers used by various integration tests.
 use async_channel::{bounded, Receiver, Sender};
 use chrono;
-use config::File as ConfigFile;
 use serde_json::json;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
@@ -20,7 +19,7 @@ use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use streamqueue::config::{Config as AppConfig, MemoryConfig};
+use streamqueue::config::Config as AppConfig;
 use streamqueue::endpoints::memory::MemoryChannel;
 use streamqueue::Bridge;
 
@@ -157,63 +156,56 @@ struct TestHarness {
 
 impl TestHarness {
     /// Creates a new TestHarness for a given broker and configuration.
-    fn new(broker_name: &str, config_file_name: &str, num_messages: usize) -> Self {
+    fn new(mut test_config: AppConfig, num_messages: usize) -> Self {
         let temp_dir = tempdir().unwrap();
-
         let (messages_to_send, sent_message_ids) = generate_test_messages(num_messages);
 
-        let full_config_settings = config::Config::builder()
-            .add_source(ConfigFile::with_name(config_file_name).required(true))
-            .build()
-            .unwrap();
-        let full_config: AppConfig = full_config_settings.try_deserialize().unwrap();
-
-        let mut test_config = AppConfig::default();
-        test_config.log_level = "info".to_string();
+        // Ensure sled path is unique for each test run to avoid conflicts.
         test_config.sled_path = temp_dir.path().join("db").to_str().unwrap().to_string();
 
-        let in_route_name = format!("memory_to_{}", broker_name.to_lowercase());
-        let out_route_name = format!("{}_to_memory", broker_name.to_lowercase());
-
-        let route_to_broker = full_config
+        // Find the route that goes from memory to the broker.
+        let (in_route_name, route_to_broker) = test_config
             .routes
-            .get(&in_route_name)
+            .iter()
+            .find(|(name, _)| name.starts_with("memory_to_"))
+            .map(|(name, route)| (name.clone(), route.clone()))
+            .unwrap_or_else(|| panic!("Could not find a 'memory_to_*' route in the config."));
+
+        // Find the route that goes from the broker back to memory.
+        let (out_route_name, route_from_broker) = test_config
+            .routes
+            .iter()
+            .find(|(name, _)| name.ends_with("_to_memory"))
+            .map(|(name, route)| (name.clone(), route.clone()))
             .unwrap_or_else(|| {
-                panic!(
-                    "Route '{}' not found in config '{}'",
-                    in_route_name, config_file_name
-                )
+                panic!("Could not find a '*_to_memory' route in the config.")
             })
             .clone();
-        let route_from_broker = full_config
-            .routes
-            .get(&out_route_name)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Route '{}' not found in config '{}'",
-                    out_route_name, config_file_name
-                )
-            })
-            .clone();
-
-        test_config
-            .routes
-            .insert(in_route_name.clone(), route_to_broker);
-        test_config
-            .routes
-            .insert(out_route_name.clone(), route_from_broker);
 
         let bridge = Bridge::new(test_config);
         let shutdown_tx = bridge.get_shutdown_handle();
 
-        let in_channel = streamqueue::endpoints::memory::get_or_create_channel(&MemoryConfig {
-            topic: "test-in".to_string(),
-            ..Default::default()
-        });
-        let out_channel = streamqueue::endpoints::memory::get_or_create_channel(&MemoryConfig {
-            topic: "test-out".to_string(),
-            ..Default::default()
-        });
+        // The input to the system is the input of the `memory_to_*` route.
+        let in_channel = route_to_broker
+            .input
+            .channel()
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Input of route '{}' must be a MemoryEndpoint",
+                    in_route_name
+                )
+            });
+
+        // The final output from the system is the output of the `*_to_memory` route.
+        let out_channel = route_from_broker
+            .output
+            .channel()
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Output of route '{}' must be a MemoryEndpoint",
+                    out_route_name
+                )
+            });
 
         Self {
             _temp_dir: temp_dir,
@@ -236,25 +228,26 @@ impl TestHarness {
     }
 }
 
-pub async fn run_pipeline_test(broker_name: &str, config_file_name: &str) {
-    run_pipeline_test_internal(broker_name, config_file_name, 5, false).await;
+pub async fn run_pipeline_test(broker_name: &str, config_yaml: &str) {
+    run_pipeline_test_internal(broker_name, config_yaml, 5, false).await;
 }
 
 pub async fn run_performance_pipeline_test(
     broker_name: &str,
-    config_file_name: &str,
+    config_yaml: &str,
     num_messages: usize,
 ) {
-    run_pipeline_test_internal(broker_name, config_file_name, num_messages, true).await;
+    run_pipeline_test_internal(broker_name, config_yaml, num_messages, true).await;
 }
 
 async fn run_pipeline_test_internal(
     broker_name: &str,
-    config_file_name: &str,
+    config_yaml: &str,
     num_messages: usize,
     is_performance_test: bool,
 ) {
-    let mut harness = TestHarness::new(broker_name, config_file_name, num_messages);
+    let app_config: AppConfig = serde_yaml_ng::from_str(config_yaml).expect("Failed to parse YAML config");
+    let mut harness = TestHarness::new(app_config, num_messages);
     let metrics = TestMetrics::new();
 
     let bridge_handle = harness.bridge.run();

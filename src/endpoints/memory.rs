@@ -195,10 +195,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_memory_channel_integration() {
-        let cfg = MemoryConfig {
-            topic: String::from("test"),
-            capacity: Some(10),
-        };
+        let cfg = MemoryConfig { topic: String::from("test-mem1"), capacity: Some(10) };
 
         let mut consumer = MemoryConsumer::new(&cfg).unwrap();
         let publisher = MemoryPublisher::new(&cfg).unwrap();
@@ -220,11 +217,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_memory_publisher_and_consumer_integration() {
-        // 1. Setup a memory channel
-        let cfg = MemoryConfig {
-            topic: String::from("test"),
-            capacity: Some(10),
-        };
+        let cfg = MemoryConfig { topic: String::from("test-mem2"), capacity: Some(10) };
         let mut consumer = MemoryConsumer::new(&cfg).unwrap();
         let publisher = MemoryPublisher::new(&cfg).unwrap();
 

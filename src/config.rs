@@ -450,8 +450,7 @@ routes:
       topic: "my_dlq"
 "#;
 
-        let config: Result<Config, _> = serde_yaml::from_str(yaml_config);
-        dbg!(&config);
+        let config: Result<Config, _> = serde_yaml_ng::from_str(yaml_config);
         assert!(config.is_ok());
         let config = config.unwrap();
 

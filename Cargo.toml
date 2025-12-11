@@ -77,7 +77,8 @@ tokio-rustls = { version = "0.26", optional = true }
 rustls-pemfile = { version = "2.2", optional = true }
 
 [dev-dependencies]
-serde_yaml = "0.9" # only for testing
+serde_yaml_ng = "0.10.0"
+yaml-rust2 = "0.10.4"
 tempfile = "3.10"
 tracing-appender = "0.2"
 chrono = "0.4"
