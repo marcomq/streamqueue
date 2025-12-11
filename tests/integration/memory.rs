@@ -4,8 +4,8 @@ use super::common::{run_performance_pipeline_test, setup_logging};
 const PERF_TEST_MESSAGE_COUNT: usize = 1250_000;
 const PERF_TEST_CONCURRENCY: usize = 1;
 const CONFIG_YAML: &str = r#"
-sled_path: "/tmp/integration_test_db_mongodb"
-dedup_ttl_seconds: 60
+metrics:
+  enabled: false
 
 routes:
   memory_to_internal:

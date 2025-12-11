@@ -160,7 +160,10 @@ impl RouteRunner {
             info!("Consumer connected. Waiting for other routes to be ready...");
             barrier.wait().await;
 
-            info!("Route connected. Starting message processing.");
+            info!(
+                metrics_enabled = global_config.metrics.enabled,
+                "Route connected. Starting message processing."
+            );
             let route_metrics = Arc::new(RouteMetrics {
                 enabled: global_config.metrics.enabled,
                 messages_received: counter!("bridge_messages_received_total", "route" => name.clone()),

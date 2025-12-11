@@ -238,7 +238,9 @@ pub struct Config {
     pub logger: String,
     #[serde(default = "info")]
     pub log_level: String,
+    #[serde(default)]
     pub sled_path: String,
+    #[serde(default)]
     pub dedup_ttl_seconds: u64,
     #[serde(default)]
     pub metrics: MetricsConfig,
@@ -389,14 +391,19 @@ pub struct MongoDbConsumerEndpoint {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     pub enabled: bool,
+    #[serde(default = "default_listen_address")]
     pub listen_address: String,
+}
+
+fn default_listen_address() -> String {
+    "0.0.0.0:9090".to_string()
 }
 
 impl Default for MetricsConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            listen_address: "0.0.0.0:9090".to_string(),
+            listen_address: default_listen_address(),
         }
     }
 }

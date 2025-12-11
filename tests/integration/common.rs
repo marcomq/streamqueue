@@ -228,7 +228,6 @@ async fn run_pipeline_test_internal(
     let app_config: AppConfig =
         serde_yaml_ng::from_str(config_yaml).expect("Failed to parse YAML config");
     let mut harness = TestHarness::new(app_config, num_messages);
-    let metrics = TestMetrics::new();
 
     let bridge_handle = harness.bridge.run();
     let start_time = std::time::Instant::now();
@@ -243,9 +242,8 @@ async fn run_pipeline_test_internal(
     };
     let wait_start = Instant::now();
     while wait_start.elapsed() < timeout {
-        let received_count = metrics
-            .get_cumulative_counter("bridge_messages_received_total", &harness.out_route_name);
-        if received_count >= num_messages as u64 {
+        let received_count = harness.out_channel.len();
+        if received_count >= num_messages {
             break;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
