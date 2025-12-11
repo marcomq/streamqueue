@@ -3,11 +3,11 @@ pub mod amqp;
 pub mod common;
 #[cfg(feature = "kafka")]
 pub mod kafka;
+pub mod memory;
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
 #[cfg(feature = "mqtt")]
 pub mod mqtt;
-pub mod memory;
 
 #[cfg(all(
     feature = "nats",
