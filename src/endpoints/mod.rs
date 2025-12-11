@@ -76,7 +76,7 @@ pub async fn create_consumer_from_route(
             Ok(Box::new(http::HttpConsumer::new(&cfg.config).await?))
         }
         ConsumerEndpointType::Static(cfg) => {
-            Ok(Box::new(static_endpoint::StaticRequestConsumer::new(cfg)?))
+            Ok(Box::new(static_endpoint::StaticRequestConsumer::new(&cfg.config)?))
         }
         ConsumerEndpointType::Memory(cfg) => Ok(Box::new(memory::MemoryConsumer::new(
             &memory::get_or_create_channel(&cfg.config),
@@ -143,7 +143,7 @@ pub async fn create_publisher_from_route(
             Ok(Arc::new(sink))
         }
         PublisherEndpointType::Static(cfg) => Ok(Arc::new(
-            static_endpoint::StaticEndpointPublisher::new(cfg)?,
+            static_endpoint::StaticEndpointPublisher::new(&cfg.config)?,
         )),
         PublisherEndpointType::Memory(cfg) => Ok(Arc::new(memory::MemoryPublisher::new(
             &memory::get_or_create_channel(&cfg.config),

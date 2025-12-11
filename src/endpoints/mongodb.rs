@@ -16,14 +16,14 @@ use mongodb::{
     IndexModel,
 };
 use mongodb::{Client, Collection};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::time::{Duration, SystemTime};
 use tracing::{info, warn};
 
 /// A helper struct for deserialization that matches the BSON structure exactly.
 /// The payload is read as a BSON Binary type, which we then manually convert.
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct MongoMessageRaw {
     message_id: i64,
     payload: Binary,

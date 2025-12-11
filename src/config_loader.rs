@@ -103,7 +103,7 @@ mod tests {
             // Assert source
             #[cfg(feature = "kafka")]
             {
-                if let ConsumerEndpointType::Kafka(k) = &route.r#in.endpoint_type {
+                if let ConsumerEndpointType::Kafka(k) = &route.input.endpoint_type {
                     assert_eq!(k.config.brokers, "env-kafka:9092"); // group_id is now optional
                     assert_eq!(k.endpoint.topic.as_deref(), Some("env-in-topic"));
                 } else {

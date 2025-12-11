@@ -33,13 +33,13 @@ async fn test_memory_to_memory_pipeline() {
     config.routes.insert(
         "memory-pipe".to_string(),
         Route {
-            r#in: ConsumerEndpoint {
+            input: ConsumerEndpoint {
                 endpoint_type: ConsumerEndpointType::Memory(MemoryConsumerEndpoint {
                     config: in_memory_config.clone(),
                     endpoint: MemoryEndpoint {},
                 }),
             },
-            out: PublisherEndpoint {
+            output: PublisherEndpoint {
                 endpoint_type: PublisherEndpointType::Memory(MemoryPublisherEndpoint {
                     config: out_memory_config.clone(),
                     endpoint: MemoryEndpoint {},

@@ -3,7 +3,6 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/streamqueue
 
-use crate::config::StaticEndpoint;
 use crate::consumers::{BoxFuture, CommitFunc, MessageConsumer};
 use crate::model::CanonicalMessage;
 use crate::publishers::MessagePublisher;
@@ -19,9 +18,9 @@ pub struct StaticEndpointPublisher {
 }
 
 impl StaticEndpointPublisher {
-    pub fn new(config: &StaticEndpoint) -> anyhow::Result<Self> {
+    pub fn new(content: &String) -> anyhow::Result<Self> {
         Ok(Self {
-            content: config.content.clone(),
+            content: content.clone(),
         })
     }
 }
@@ -50,9 +49,9 @@ pub struct StaticRequestConsumer {
 }
 
 impl StaticRequestConsumer {
-    pub fn new(config: &StaticEndpoint) -> anyhow::Result<Self> {
+    pub fn new(content: &String) -> anyhow::Result<Self> {
         Ok(Self {
-            content: config.content.clone(),
+            content: content.clone(),
         })
     }
 }

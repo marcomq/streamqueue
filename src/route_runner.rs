@@ -112,7 +112,7 @@ impl RouteRunner {
             // 1. Connect to the publisher (and DLQ) first. Retry on failure.
             let publisher = match Self::connect_with_retry(
                 "publisher",
-                || create_publisher_from_route(&name, &route.out),
+                || create_publisher_from_route(&name, &route.output),
                 &mut shutdown_rx,
             )
             .await
@@ -141,7 +141,7 @@ impl RouteRunner {
             // 2. Connect to the consumer. Retry on failure.
             let consumer = match Self::connect_with_retry(
                 "consumer",
-                || create_consumer_from_route(&name, &route.r#in),
+                || create_consumer_from_route(&name, &route.input),
                 &mut shutdown_rx,
             )
             .await

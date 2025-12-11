@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct KafkaConfig {
     pub brokers: String,
     pub group_id: Option<String>,
@@ -17,7 +17,7 @@ pub struct KafkaConfig {
     pub consumer_options: Option<Vec<(String, String)>>,
 }
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct TlsConfig {
     #[serde(default)]
     pub required: bool,
@@ -27,7 +27,7 @@ pub struct TlsConfig {
     pub cert_password: Option<String>, // For PKCS12 certs in AMQP
 }
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct ClientTlsConfig {
     #[serde(default)]
     pub required: bool,
@@ -39,7 +39,7 @@ pub struct ClientTlsConfig {
     pub accept_invalid_certs: bool,
 }
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct NatsConfig {
     pub url: String,
     pub username: Option<String>,
@@ -52,7 +52,7 @@ pub struct NatsConfig {
     pub tls: ClientTlsConfig,
 }
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct AmqpConfig {
     pub url: String,
     pub username: Option<String>,
@@ -63,7 +63,7 @@ pub struct AmqpConfig {
     pub tls: ClientTlsConfig,
 }
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct MqttConfig {
     pub url: String,
     #[serde(flatten, default)]
@@ -74,12 +74,12 @@ pub struct MqttConfig {
     pub queue_capacity: Option<usize>,
 }
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FileConfig {
     pub path: String,
 }
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct HttpConfig {
     pub listen_address: Option<String>,
     pub url: Option<String>,
@@ -88,13 +88,13 @@ pub struct HttpConfig {
     pub tls: TlsConfig, // Server-side TLS does not use accept_invalid_certs
 }
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct MemoryConfig {
     pub topic: String,
     pub capacity: Option<usize>,
 }
 
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash)]
 pub struct MongoDbConfig {
     pub url: String,
     pub database: String,
@@ -117,7 +117,7 @@ impl ClientTlsConfig {
         self.required && self.cert_file.is_some()
     }
 }
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum ConnectionType {
     Kafka(KafkaConfig),
@@ -131,50 +131,50 @@ pub enum ConnectionType {
     MongoDb(MongoDbConfig),
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct KafkaEndpoint {
     pub topic: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct NatsEndpoint {
     pub subject: Option<String>,
     pub stream: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct AmqpEndpoint {
     pub queue: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct MqttEndpoint {
     pub topic: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct FileEndpoint {}
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct HttpEndpoint {
     pub url: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct StaticEndpoint {
     #[serde(default = "default_static_response_content")]
-    pub content: String,
+    pub config: String,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct MemoryEndpoint {}
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct MongoDbEndpoint {
     pub collection: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub struct PublisherEndpoint {
     // pub connection: String,
@@ -182,7 +182,7 @@ pub struct PublisherEndpoint {
     pub endpoint_type: PublisherEndpointType,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub struct ConsumerEndpoint {
     // pub connection: String,
@@ -190,7 +190,7 @@ pub struct ConsumerEndpoint {
     pub endpoint_type: ConsumerEndpointType,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum PublisherEndpointType {
     Kafka(KafkaPublisherEndpoint),
@@ -204,17 +204,19 @@ pub enum PublisherEndpointType {
     Static(StaticEndpoint),
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Route {
-    pub r#in: ConsumerEndpoint,
-    pub out: PublisherEndpoint,
+    #[serde(rename = "in")]
+    pub input: ConsumerEndpoint,
+    #[serde(rename = "out")]
+    pub output: PublisherEndpoint,
     pub dlq: Option<DlqConfig>,
     pub concurrency: Option<usize>,
     #[serde(default = "default_true")]
     pub deduplication_enabled: bool,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum ConsumerEndpointType {
     Kafka(KafkaConsumerEndpoint),
@@ -235,7 +237,7 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     #[serde(default)]
     pub logger: String,
@@ -260,7 +262,7 @@ impl Default for Config {
         }
     }
 }
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct KafkaConsumerEndpoint {
     #[serde(flatten)]
     pub config: KafkaConfig,
@@ -268,7 +270,7 @@ pub struct KafkaConsumerEndpoint {
     pub endpoint: KafkaEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct NatsConsumerEndpoint {
     #[serde(flatten)]
     pub config: NatsConfig,
@@ -276,7 +278,7 @@ pub struct NatsConsumerEndpoint {
     pub endpoint: NatsEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct AmqpConsumerEndpoint {
     #[serde(flatten)]
     pub config: AmqpConfig,
@@ -284,7 +286,7 @@ pub struct AmqpConsumerEndpoint {
     pub endpoint: AmqpEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct MqttConsumerEndpoint {
     #[serde(flatten)]
     pub config: MqttConfig,
@@ -292,7 +294,7 @@ pub struct MqttConsumerEndpoint {
     pub endpoint: MqttEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct FileConsumerEndpoint {
     #[serde(flatten)]
     pub config: FileConfig,
@@ -300,7 +302,7 @@ pub struct FileConsumerEndpoint {
     pub endpoint: FileEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct HttpConsumerEndpoint {
     #[serde(flatten)]
     pub config: HttpConfig,
@@ -308,7 +310,7 @@ pub struct HttpConsumerEndpoint {
     pub endpoint: HttpEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct MemoryConsumerEndpoint {
     #[serde(flatten)]
     pub config: MemoryConfig,
@@ -316,7 +318,7 @@ pub struct MemoryConsumerEndpoint {
     pub endpoint: MemoryEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct KafkaPublisherEndpoint {
     #[serde(flatten)]
     pub config: KafkaConfig,
@@ -324,7 +326,7 @@ pub struct KafkaPublisherEndpoint {
     pub endpoint: KafkaEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NatsPublisherEndpoint {
     #[serde(flatten)]
     pub config: NatsConfig,
@@ -332,7 +334,7 @@ pub struct NatsPublisherEndpoint {
     pub endpoint: NatsEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AmqpPublisherEndpoint {
     #[serde(flatten)]
     pub config: AmqpConfig,
@@ -340,7 +342,7 @@ pub struct AmqpPublisherEndpoint {
     pub endpoint: AmqpEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MqttPublisherEndpoint {
     #[serde(flatten)]
     pub config: MqttConfig,
@@ -348,7 +350,7 @@ pub struct MqttPublisherEndpoint {
     pub endpoint: MqttEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FilePublisherEndpoint {
     #[serde(flatten)]
     pub config: FileConfig,
@@ -356,7 +358,7 @@ pub struct FilePublisherEndpoint {
     pub endpoint: FileEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct HttpPublisherEndpoint {
     #[serde(flatten)]
     pub config: HttpConfig,
@@ -364,7 +366,7 @@ pub struct HttpPublisherEndpoint {
     pub endpoint: HttpEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MongoDbPublisherEndpoint {
     #[serde(flatten)]
     pub config: MongoDbConfig,
@@ -372,7 +374,7 @@ pub struct MongoDbPublisherEndpoint {
     pub endpoint: MongoDbEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MemoryPublisherEndpoint {
     #[serde(flatten)]
     pub config: MemoryConfig,
@@ -380,7 +382,7 @@ pub struct MemoryPublisherEndpoint {
     pub endpoint: MemoryEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct MongoDbConsumerEndpoint {
     #[serde(flatten)]
     pub config: MongoDbConfig,
@@ -388,7 +390,7 @@ pub struct MongoDbConsumerEndpoint {
     pub endpoint: MongoDbEndpoint,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     pub enabled: bool,
     pub listen_address: String,
@@ -403,12 +405,12 @@ impl Default for MetricsConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DlqKafkaEndpoint {
     pub topic: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DlqConfig {
     // pub connection: String,
     #[serde(flatten)]
@@ -458,7 +460,7 @@ routes:
         let route = &config.routes["kafka_to_nats"];
         assert!(route.dlq.is_some());
         #[cfg(feature = "kafka")]
-        if let ConsumerEndpointType::Kafka(k) = &route.r#in.endpoint_type {
+        if let ConsumerEndpointType::Kafka(k) = &route.input.endpoint_type {
             assert_eq!(k.config.brokers, "kafka:9092");
             assert_eq!(k.endpoint.topic.as_deref(), Some("in_topic"));
         }
