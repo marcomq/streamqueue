@@ -430,6 +430,7 @@ mod tests {
         let yaml_config = r#"
 sled_path: "/tmp/test_db"
 dedup_ttl_seconds: 3600
+log_level: "debug"
 
 metrics:
   enabled: true
