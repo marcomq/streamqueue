@@ -2,7 +2,7 @@
 //  © Copyright 2025, by Marco Mengelkoch
 //  Licensed under MIT License, see License file for more details
 use crate::config::{Config, Route};
-use crate::consumers::{CommitFunc, MessageConsumer};
+use crate::consumers::{CommitFunc, ConsumerError, MessageConsumer};
 use crate::deduplication::DeduplicationStore;
 use crate::endpoints::{
     create_consumer_from_route, create_dlq_from_route, create_publisher_from_route,
@@ -294,7 +294,7 @@ impl RouteRunner {
         let (work_tx, work_rx) =
             async_channel::bounded::<(CanonicalMessage, CommitFunc)>(concurrency * 2);
 
-        let mut worker_tasks = JoinSet::new();
+        let mut worker_tasks: JoinSet<()> = JoinSet::new();
         let deduplication_enabled = route.deduplication_enabled;
 
         // --- Spawn Worker Pool ---
@@ -342,13 +342,10 @@ impl RouteRunner {
                         }
                     }
                     Err(e) => {
-                        if !e
-                            .to_string()
-                            .contains("BufferedConsumer channel has been closed")
-                        {
-                            info!(error = %e, "Underlying consumer failed. Stopping consumer task.");
-                        } else {
+                        if e.downcast_ref::<ConsumerError>() == Some(&ConsumerError::ChannelClosed) {
                             info!("Consumer stream ended (e.g. EOF). Stopping consumer task.");
+                        } else {
+                            info!(error = %e, "Underlying consumer failed. Stopping consumer task.");
                         }
                         return Err(e); // Propagate error to signal completion/failure
                     }
@@ -483,10 +480,10 @@ impl RouteRunner {
                             ).await;
                         }
                         Err(e) => {
-                            if !e.to_string().contains("BufferedConsumer channel has been closed") {
-                                info!(error = %e, "Underlying consumer failed. Stopping consumer task.");
-                            } else {
+                            if e.downcast_ref::<ConsumerError>() == Some(&ConsumerError::ChannelClosed) {
                                 info!("Consumer stream ended (e.g. EOF). Stopping consumer task.");
+                            } else {
+                                info!(error = %e, "Underlying consumer failed. Stopping consumer task.");
                             }
                             break 'main_loop; // Consumer finished, exit loop.
                         }

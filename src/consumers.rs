@@ -1,10 +1,17 @@
 use crate::model::CanonicalMessage;
 use anyhow::anyhow;
-use async_channel::{bounded, Receiver};
+use async_channel::{bounded, Receiver, RecvError};
 use async_trait::async_trait;
 pub use futures::future::BoxFuture;
 use std::any::Any;
+use thiserror::Error;
 use tokio::task::JoinHandle;
+
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ConsumerError {
+    #[error("BufferedConsumer channel has been closed.")]
+    ChannelClosed,
+}
 
 /// A closure that can be called to commit the message.
 /// It returns a `BoxFuture` to allow for async commit operations.
@@ -82,7 +89,7 @@ impl MessageConsumer for BufferedConsumer {
         self.message_rx
             .recv()
             .await
-            .map_err(|_| anyhow!("BufferedConsumer channel has been closed."))
+            .map_err(|_: RecvError| anyhow!(ConsumerError::ChannelClosed))
     }
 
     fn as_any(&self) -> &dyn Any {

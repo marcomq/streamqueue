@@ -3684,6 +3684,7 @@ dependencies = [
  "serde_yaml_ng",
  "sled",
  "tempfile",
+ "thiserror 2.0.17",
  "tokio",
  "tokio-rustls",
  "tracing",

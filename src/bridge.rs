@@ -85,27 +85,20 @@ impl Bridge {
                 return Ok(());
             }
 
-            // If there are routes, wait for them to complete or for a shutdown signal.
-            // If there are no routes, just wait for the shutdown signal.
-            if !route_tasks.is_empty() {
-                tokio::select! {
-                    _ = shutdown_rx.changed() => {
-                        info!("Global shutdown signal received. Draining all routes.");
-                    }
-                    _ = async {
-                        while let Some(res) = route_tasks.join_next().await {
-                            if let Err(e) = res {
-                                error!("A route task panicked or failed: {}", e);
-                            }
-                        }
-                    } => {
-                        info!("All routes have completed their work. Bridge shutting down.");
-                    }
+            // Wait for either a shutdown signal or for all routes to complete naturally.
+            tokio::select! {
+                _ = shutdown_rx.changed() => {
+                    info!("Global shutdown signal received. Draining all routes.");
                 }
-            } else {
-                // No routes, so just wait for the shutdown signal.
-                let _ = shutdown_rx.changed().await;
-                info!("Global shutdown signal received. Draining all routes.");
+                _ = async { // This future completes when all route tasks have finished.
+                    while let Some(res) = route_tasks.join_next().await {
+                        if let Err(e) = res {
+                            error!("A route task panicked or failed: {}", e);
+                        }
+                    }
+                }, if !route_tasks.is_empty() => {
+                    info!("All routes have completed their work naturally. Bridge shutting down.");
+                }
             }
 
             // Ensure all tasks are finished.
