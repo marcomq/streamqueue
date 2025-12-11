@@ -1,8 +1,5 @@
 #![allow(dead_code)]
-use std::{
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use super::common::{
     measure_read_performance, measure_write_performance, run_performance_pipeline_test,
@@ -23,7 +20,12 @@ pub async fn test_nats_pipeline() {
 pub async fn test_nats_performance_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/nats.yml", || async {
-        run_performance_pipeline_test("nats", "tests/integration/config/nats.yml", PERF_TEST_MESSAGE_COUNT).await;
+        run_performance_pipeline_test(
+            "nats",
+            "tests/integration/config/nats.yml",
+            PERF_TEST_MESSAGE_COUNT,
+        )
+        .await;
     })
     .await;
 }
@@ -59,7 +61,13 @@ pub async fn test_nats_performance_direct() {
                 .await
                 .unwrap(),
         ));
-        measure_read_performance("NATS", consumer, PERF_TEST_MESSAGE_COUNT_DIRECT, PERF_TEST_CONCURRENCY).await;
+        measure_read_performance(
+            "NATS",
+            consumer,
+            PERF_TEST_MESSAGE_COUNT_DIRECT,
+            PERF_TEST_CONCURRENCY,
+        )
+        .await;
     })
     .await;
 }

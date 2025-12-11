@@ -86,7 +86,7 @@ uuid = { version = "1.19", features = ["v4"] }
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 
 [features]
-default = ["core"]
+default = ["core", "full"]
 core = ["dedup", "dotenv"]
 full = ["dedup", "dotenv", "mongodb", "kafka", "amqp", "nats", "mqtt", "http"]
 

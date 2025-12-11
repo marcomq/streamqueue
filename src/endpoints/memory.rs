@@ -105,14 +105,23 @@ pub fn get_or_create_channel(config: &MemoryConfig) -> MemoryChannel {
 /// A sink that sends messages to an in-memory channel.
 #[derive(Clone)]
 pub struct MemoryPublisher {
+    topic: String,
     sender: Sender<CanonicalMessage>,
 }
 
 impl MemoryPublisher {
-    pub fn new(channel: &MemoryChannel) -> Self {
-        Self {
+    pub fn new(config: &MemoryConfig) -> anyhow::Result<Self> {
+        let channel = get_or_create_channel(&config);
+        Ok(Self {
+            topic: config.topic.clone(),
             sender: channel.sender.clone(),
-        }
+        })
+    }
+    pub fn channel(&self) -> MemoryChannel {
+        get_or_create_channel(&MemoryConfig {
+            topic: self.topic.clone(),
+            capacity: None,
+        })
     }
 }
 
@@ -138,14 +147,23 @@ impl MessagePublisher for MemoryPublisher {
 
 /// A source that reads messages from an in-memory channel.
 pub struct MemoryConsumer {
+    topic: String,
     receiver: Receiver<CanonicalMessage>,
 }
 
 impl MemoryConsumer {
-    pub fn new(channel: &MemoryChannel) -> Self {
-        Self {
+    pub fn new(config: &MemoryConfig) -> anyhow::Result<Self> {
+        let channel = get_or_create_channel(&config);
+        Ok(Self {
+            topic: config.topic.clone(),
             receiver: channel.receiver.clone(),
-        }
+        })
+    }
+    pub fn channel(&self) -> MemoryChannel {
+        get_or_create_channel(&MemoryConfig {
+            topic: self.topic.clone(),
+            capacity: None,
+        })
     }
 }
 
@@ -173,35 +191,42 @@ mod tests {
     use super::*;
     use crate::model::CanonicalMessage;
     use serde_json::json;
+    use tokio::time::sleep;
 
     #[tokio::test]
     async fn test_memory_channel_integration() {
-        let channel = MemoryChannel::new(10);
+        let cfg = MemoryConfig {
+            topic: String::from("test"),
+            capacity: Some(10),
+        };
 
-        let mut consumer = MemoryConsumer::new(&channel);
-        let publisher = MemoryPublisher::new(&channel);
+        let mut consumer = MemoryConsumer::new(&cfg).unwrap();
+        let publisher = MemoryPublisher::new(&cfg).unwrap();
 
         let msg = CanonicalMessage::from_json(json!({"hello": "memory"})).unwrap();
 
         // Send a message via the publisher
+        // Send a message via the publisher
         publisher.send(msg.clone()).await.unwrap();
 
+        sleep(std::time::Duration::from_millis(10)).await;
         // Receive it with the consumer
         let (received_msg, commit) = consumer.receive().await.unwrap();
         commit(None).await;
 
         assert_eq!(received_msg.payload, msg.payload);
-        assert_eq!(channel.len(), 0);
+        assert_eq!(consumer.channel().len(), 0);
     }
 
     #[tokio::test]
     async fn test_memory_publisher_and_consumer_integration() {
         // 1. Setup a memory channel
-        let channel = MemoryChannel::new(10);
-
-        // 2. Create a MemoryPublisher and MemoryConsumer
-        let publisher = MemoryPublisher::new(&channel);
-        let mut consumer = MemoryConsumer::new(&channel);
+        let cfg = MemoryConfig {
+            topic: String::from("test"),
+            capacity: Some(10),
+        };
+        let mut consumer = MemoryConsumer::new(&cfg).unwrap();
+        let publisher = MemoryPublisher::new(&cfg).unwrap();
 
         let msg1 = CanonicalMessage::from_json(json!({"message": "one"})).unwrap();
         let msg2 = CanonicalMessage::from_json(json!({"message": "two"})).unwrap();
@@ -211,7 +236,7 @@ mod tests {
         publisher.send(msg2.clone()).await.unwrap();
 
         // 4. Verify the channel has the messages
-        assert_eq!(channel.len(), 2);
+        assert_eq!(publisher.channel().len(), 2);
 
         // 5. Receive the messages and verify them
         let (received_msg1, commit1) = consumer.receive().await.unwrap();
@@ -223,7 +248,7 @@ mod tests {
         assert_eq!(received_msg2.payload, msg2.payload);
 
         // 6. Verify that the channel is now empty
-        assert_eq!(channel.len(), 0);
+        assert_eq!(publisher.channel().len(), 0);
 
         // 7. Verify that reading again results in an error because the channel is empty and we are not closing it
         // In a real scenario with a closed channel, this would error out. Here we can just check it's empty.

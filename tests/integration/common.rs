@@ -33,7 +33,7 @@ pub struct TestMetrics {
 impl TestMetrics {
     pub fn new() -> Self {
         let recorder = DebuggingRecorder::new();
-        let snapshotter = recorder.snapshotter(); 
+        let snapshotter = recorder.snapshotter();
         metrics::set_global_recorder(recorder).expect("Failed to install testing recorder");
         Self {
             snapshotter,
@@ -43,7 +43,7 @@ impl TestMetrics {
 
     pub fn get_cumulative_counter(&self, name: &str, route: &str) -> u64 {
         let snapshot = self.snapshotter.snapshot();
-        let mut cumulative_counters = self.cumulative_counters.lock().unwrap(); 
+        let mut cumulative_counters = self.cumulative_counters.lock().unwrap();
         for (key, _, _, value) in snapshot.into_vec() {
             if key.kind() == MetricKind::Counter && key.key().name() == name {
                 if key
@@ -206,16 +206,14 @@ impl TestHarness {
         let bridge = Bridge::new(test_config);
         let shutdown_tx = bridge.get_shutdown_handle();
 
-        let in_channel =
-            streamqueue::endpoints::memory::get_or_create_channel(&MemoryConfig {
-                topic: "test-in".to_string(),
-                ..Default::default()
-            });
-        let out_channel =
-            streamqueue::endpoints::memory::get_or_create_channel(&MemoryConfig {
-                topic: "test-out".to_string(),
-                ..Default::default()
-            });
+        let in_channel = streamqueue::endpoints::memory::get_or_create_channel(&MemoryConfig {
+            topic: "test-in".to_string(),
+            ..Default::default()
+        });
+        let out_channel = streamqueue::endpoints::memory::get_or_create_channel(&MemoryConfig {
+            topic: "test-out".to_string(),
+            ..Default::default()
+        });
 
         Self {
             _temp_dir: temp_dir,
@@ -272,8 +270,8 @@ async fn run_pipeline_test_internal(
     };
     let wait_start = Instant::now();
     while wait_start.elapsed() < timeout {
-        let received_count =
-            metrics.get_cumulative_counter("bridge_messages_received_total", &harness.out_route_name);
+        let received_count = metrics
+            .get_cumulative_counter("bridge_messages_received_total", &harness.out_route_name);
         if received_count >= num_messages as u64 {
             break;
         }
@@ -481,7 +479,9 @@ pub async fn measure_read_performance(
                     Ok((_, commit)) => {
                         // Spawn the commit to a separate task to allow the worker
                         // to immediately start receiving the next message.
-                        tokio::spawn(async move { commit(None).await; });
+                        tokio::spawn(async move {
+                            commit(None).await;
+                        });
                     }
                     Err(e) => {
                         eprintln!("Error receiving message: {}. Worker stopping.", e);

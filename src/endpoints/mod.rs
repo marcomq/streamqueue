@@ -75,12 +75,12 @@ pub async fn create_consumer_from_route(
         ConsumerEndpointType::Http(cfg) => {
             Ok(Box::new(http::HttpConsumer::new(&cfg.config).await?))
         }
-        ConsumerEndpointType::Static(cfg) => {
-            Ok(Box::new(static_endpoint::StaticRequestConsumer::new(&cfg.config)?))
+        ConsumerEndpointType::Static(cfg) => Ok(Box::new(
+            static_endpoint::StaticRequestConsumer::new(&cfg.config)?,
+        )),
+        ConsumerEndpointType::Memory(cfg) => {
+            Ok(Box::new(memory::MemoryConsumer::new(&cfg.config)?))
         }
-        ConsumerEndpointType::Memory(cfg) => Ok(Box::new(memory::MemoryConsumer::new(
-            &memory::get_or_create_channel(&cfg.config),
-        ))),
         #[cfg(feature = "mongodb")]
         ConsumerEndpointType::MongoDb(cfg) => {
             let collection = cfg.endpoint.collection.as_deref().unwrap_or(route_name);
@@ -145,9 +145,9 @@ pub async fn create_publisher_from_route(
         PublisherEndpointType::Static(cfg) => Ok(Arc::new(
             static_endpoint::StaticEndpointPublisher::new(&cfg.config)?,
         )),
-        PublisherEndpointType::Memory(cfg) => Ok(Arc::new(memory::MemoryPublisher::new(
-            &memory::get_or_create_channel(&cfg.config),
-        ))),
+        PublisherEndpointType::Memory(cfg) => {
+            Ok(Arc::new(memory::MemoryPublisher::new(&cfg.config)?))
+        }
         #[cfg(feature = "mongodb")]
         PublisherEndpointType::MongoDb(cfg) => {
             let collection = cfg.endpoint.collection.as_deref().unwrap_or(route_name);
@@ -179,4 +179,26 @@ pub async fn create_dlq_from_route(
         }
     }
     Ok(None)
+}
+
+impl ConsumerEndpoint {
+    pub fn channel(&self) -> Result<memory::MemoryChannel> {
+        match &self.endpoint_type {
+            ConsumerEndpointType::Memory(cfg) => {
+                Ok(memory::get_or_create_channel(&cfg.config))
+            }
+            _ => Err(anyhow!("channel() called on non-memory ConsumerEndpoint")),
+        }
+    }
+}
+
+impl PublisherEndpoint {
+    pub fn channel(&self) -> Result<memory::MemoryChannel> {
+        match &self.endpoint_type {
+            PublisherEndpointType::Memory(cfg) => {
+                Ok(memory::get_or_create_channel(&cfg.config))
+            }
+            _ => Err(anyhow!("channel() called on non-memory ConsumerEndpoint")),
+        }
+    }
 }

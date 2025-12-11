@@ -4,10 +4,7 @@ use super::common::{
     run_pipeline_test, run_test_with_docker, setup_logging, PERF_TEST_CONCURRENCY,
     PERF_TEST_MESSAGE_COUNT,
 };
-use std::{
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 use streamqueue::endpoints::mqtt::{MqttConsumer, MqttPublisher};
 use uuid::Uuid;
 
@@ -24,8 +21,12 @@ pub async fn test_mqtt_pipeline() {
 pub async fn test_mqtt_performance_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/mqtt.yml", || async {
-        run_performance_pipeline_test("mqtt", "tests/integration/config/mqtt.yml", PERF_TEST_MESSAGE_COUNT)
-            .await;
+        run_performance_pipeline_test(
+            "mqtt",
+            "tests/integration/config/mqtt.yml",
+            PERF_TEST_MESSAGE_COUNT,
+        )
+        .await;
     })
     .await;
 }
@@ -77,7 +78,13 @@ pub async fn test_mqtt_performance_direct() {
         // This helps prevent the broker from overwhelming the new consumer and dropping the connection.
         tokio::time::sleep(Duration::from_secs(3)).await;
 
-        measure_read_performance("MQTT", consumer, PERF_TEST_MESSAGE_COUNT_DIRECT, PERF_TEST_CONCURRENCY).await;
+        measure_read_performance(
+            "MQTT",
+            consumer,
+            PERF_TEST_MESSAGE_COUNT_DIRECT,
+            PERF_TEST_CONCURRENCY,
+        )
+        .await;
     })
     .await;
 }

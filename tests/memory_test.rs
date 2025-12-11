@@ -1,10 +1,9 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 use streamqueue::config::{
     Config, ConsumerEndpoint, ConsumerEndpointType, MemoryConfig, MemoryConsumerEndpoint,
-    MemoryEndpoint, MemoryPublisherEndpoint, PublisherEndpoint, PublisherEndpointType, Route,
+    MemoryPublisherEndpoint, MetricsConfig, PublisherEndpoint, PublisherEndpointType, Route,
 };
-use streamqueue::endpoints::memory::get_or_create_channel;
 
 mod integration;
 
@@ -19,43 +18,42 @@ async fn test_memory_to_memory_pipeline() {
     let (messages_to_send, sent_message_ids) =
         integration::common::generate_test_messages(num_messages);
 
-    let mut config = Config::default();
-    config.log_level = "info".to_string();
-    config.metrics.enabled = false;
-    let in_memory_config = MemoryConfig {
-        topic: "mem-in".to_string(),
-        capacity: Some(200), // A reasonable capacity for the input channel
-    };
-    let out_memory_config = MemoryConfig {
-        topic: "mem-out".to_string(),
-        capacity: Some(num_messages + 10_000), // Ensure output can hold all messages
-    };
-    config.routes.insert(
-        "memory-pipe".to_string(),
-        Route {
-            input: ConsumerEndpoint {
-                endpoint_type: ConsumerEndpointType::Memory(MemoryConsumerEndpoint {
-                    config: in_memory_config.clone(),
-                    endpoint: MemoryEndpoint {},
-                }),
+    let config = Config {
+        metrics: MetricsConfig::disabled(),
+        routes: HashMap::from([(
+            "mem".to_string(),
+            Route {
+                input: ConsumerEndpoint {
+                    endpoint_type: ConsumerEndpointType::Memory(MemoryConsumerEndpoint {
+                        config: MemoryConfig {
+                            topic: "mem-in".to_string(),
+                            capacity: Some(200), // A reasonable capacity for the input channel
+                        },
+                    }),
+                },
+                output: PublisherEndpoint {
+                    endpoint_type: PublisherEndpointType::Memory(MemoryPublisherEndpoint {
+                        config: MemoryConfig {
+                            topic: "mem-out".to_string(),
+                            capacity: Some(num_messages + 10_000), // Ensure output can hold all messages
+                        },
+                    }),
+                },
+                dlq: None,
+                concurrency: Some(1),
+                deduplication_enabled: false,
             },
-            output: PublisherEndpoint {
-                endpoint_type: PublisherEndpointType::Memory(MemoryPublisherEndpoint {
-                    config: out_memory_config.clone(),
-                    endpoint: MemoryEndpoint {},
-                }),
-            },
-            dlq: None,
-            concurrency: Some(1),
-            deduplication_enabled: false,
-        },
-    );
+        )]),
+        ..Default::default()
+    };
 
     let mut bridge = streamqueue::Bridge::new(config);
-    let bridge_handle = bridge.run();
 
-    let in_channel = get_or_create_channel(&in_memory_config);
-    let out_channel = get_or_create_channel(&out_memory_config);
+    let (_name, route) = bridge.routes().next().unwrap(); // there is only one route here
+    let in_channel = route.input.channel().unwrap();
+    let out_channel = route.output.channel().unwrap();
+
+    let bridge_handle = bridge.run();
 
     println!("--- Starting Memory-to-Memory Pipeline Test ---");
     let start_time = Instant::now();

@@ -3,7 +3,7 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/streamqueue
 
-use crate::config::Config;
+use crate::config::{Config, Route};
 use crate::route_runner::{RouteRunner, RouteRunnerCommand};
 use anyhow::Result;
 use std::collections::HashMap;
@@ -115,12 +115,23 @@ impl Bridge {
         })
     }
 
+    pub fn get_route(&self, name: &str) -> Option<Route> {
+        self.config.routes.get(name).cloned()
+    }
+
+    pub fn routes(&self) -> impl Iterator<Item = (&String, &Route)> {
+        self.config.routes.iter()
+    }
+
     /// Waits for all route tasks to complete.
     pub async fn wait_for_completion(&self) {
         let mut tasks = self.route_tasks.lock().await;
         while let Some(res) = tasks.join_next().await {
             if let Err(e) = res {
-                error!("A route task panicked or failed during wait_for_completion: {}", e);
+                error!(
+                    "A route task panicked or failed during wait_for_completion: {}",
+                    e
+                );
             }
         }
     }

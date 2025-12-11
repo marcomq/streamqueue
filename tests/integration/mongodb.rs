@@ -1,13 +1,9 @@
 #![allow(dead_code)]
-use std::{
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use super::common::{
     measure_read_performance, measure_write_performance, run_performance_pipeline_test,
-    run_pipeline_test, run_test_with_docker, setup_logging,
-    PERF_TEST_MESSAGE_COUNT,
+    run_pipeline_test, run_test_with_docker, setup_logging, PERF_TEST_MESSAGE_COUNT,
 };
 use streamqueue::endpoints::mongodb::{MongoDbConsumer, MongoDbPublisher};
 const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 10_000;
@@ -24,8 +20,12 @@ pub async fn test_mongodb_pipeline() {
 pub async fn test_mongodb_performance_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/mongodb.yml", || async {
-        run_performance_pipeline_test("mongodb", "tests/integration/config/mongodb.yml", PERF_TEST_MESSAGE_COUNT)
-            .await;
+        run_performance_pipeline_test(
+            "mongodb",
+            "tests/integration/config/mongodb.yml",
+            PERF_TEST_MESSAGE_COUNT,
+        )
+        .await;
     })
     .await;
 }
@@ -69,7 +69,13 @@ pub async fn test_mongodb_performance_direct() {
                 .await
                 .unwrap(),
         ));
-        measure_read_performance("MONGODB", consumer, PERF_TEST_MESSAGE_COUNT_DIRECT, PERF_TEST_CONCURRENCY).await;
+        measure_read_performance(
+            "MONGODB",
+            consumer,
+            PERF_TEST_MESSAGE_COUNT_DIRECT,
+            PERF_TEST_CONCURRENCY,
+        )
+        .await;
     })
     .await;
 }

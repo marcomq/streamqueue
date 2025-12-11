@@ -11,9 +11,7 @@ use mongodb::{
     error::ErrorKind,
 };
 use mongodb::{
-    change_stream::event::ChangeStreamEvent,
-    options::FindOneAndUpdateOptions,
-    IndexModel,
+    change_stream::event::ChangeStreamEvent, options::FindOneAndUpdateOptions, IndexModel,
 };
 use mongodb::{Client, Collection};
 use serde::{Deserialize, Serialize};

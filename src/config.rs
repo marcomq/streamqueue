@@ -167,9 +167,6 @@ pub struct StaticEndpoint {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
-pub struct MemoryEndpoint {}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct MongoDbEndpoint {
     pub collection: Option<String>,
 }
@@ -314,8 +311,6 @@ pub struct HttpConsumerEndpoint {
 pub struct MemoryConsumerEndpoint {
     #[serde(flatten)]
     pub config: MemoryConfig,
-    #[serde(flatten)]
-    pub endpoint: MemoryEndpoint,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -378,8 +373,6 @@ pub struct MongoDbPublisherEndpoint {
 pub struct MemoryPublisherEndpoint {
     #[serde(flatten)]
     pub config: MemoryConfig,
-    #[serde(flatten)]
-    pub endpoint: MemoryEndpoint,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
@@ -401,6 +394,14 @@ impl Default for MetricsConfig {
         Self {
             enabled: true,
             listen_address: "0.0.0.0:9090".to_string(),
+        }
+    }
+}
+impl MetricsConfig {
+    pub fn disabled() -> Self {
+        Self {
+            enabled: false,
+            listen_address: "".to_string(),
         }
     }
 }
