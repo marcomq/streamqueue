@@ -15,6 +15,16 @@ pub struct DeduplicationStore {
 }
 
 impl DeduplicationStore {
+    pub fn disabled() -> Self {
+        Self {
+            db: sled::Config::new()
+                .temporary(true)
+                .open()
+                .expect("Failed to open temporary sled database"),
+            ttl_seconds: 0,
+            current_time: Arc::new(AtomicU64::new(0)),
+        }
+    }
     pub fn new<P: AsRef<Path>>(path: P, ttl_seconds: u64) -> Result<Self, sled::Error> {
         info!("Opening deduplication database at: {:?}", path.as_ref());
 

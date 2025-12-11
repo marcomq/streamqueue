@@ -207,7 +207,7 @@ pub struct Route {
     pub output: PublisherEndpoint,
     pub dlq: Option<DlqConfig>,
     pub concurrency: Option<usize>,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub deduplication_enabled: bool,
 }
 

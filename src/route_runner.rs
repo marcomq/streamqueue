@@ -100,7 +100,12 @@ impl RouteRunner {
         } = self;
 
         info!("Initializing route {}", name);
-        let dedup_store = Self::setup_deduplication(&global_config, &name, &mut shutdown_rx).await;
+        let dedup_store = if route.deduplication_enabled {
+            Self::setup_deduplication(&global_config, &name, &mut shutdown_rx).await
+        } else {
+            Arc::new(DeduplicationStore::disabled())
+        };
+
         // Take ownership of the command receiver. It cannot be cloned.
         loop {
             // Check for shutdown before attempting to connect.
