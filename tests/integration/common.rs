@@ -163,55 +163,34 @@ impl TestHarness {
         // Ensure sled path is unique for each test run to avoid conflicts.
         test_config.sled_path = temp_dir.path().join("db").to_str().unwrap().to_string();
 
-        // Find the route that goes from memory to the broker.
-        let (in_route_name, route_to_broker) = test_config
-            .routes
-            .iter()
-            .find(|(name, _)| name.starts_with("memory_to_"))
-            .map(|(name, route)| (name.clone(), route.clone()))
-            .unwrap_or_else(|| panic!("Could not find a 'memory_to_*' route in the config."));
-
-        // Find the route that goes from the broker back to memory.
-        let (out_route_name, route_from_broker) = test_config
-            .routes
-            .iter()
-            .find(|(name, _)| name.ends_with("_to_memory"))
-            .map(|(name, route)| (name.clone(), route.clone()))
-            .unwrap_or_else(|| {
-                panic!("Could not find a '*_to_memory' route in the config.")
-            })
-            .clone();
-
         let bridge = Bridge::new(test_config);
         let shutdown_tx = bridge.get_shutdown_handle();
 
+        // Find the route that goes from memory to the broker.
+        let (_in_route_name, route_to_broker) = &bridge
+            .routes()
+            .find(|(name, _)| name.starts_with("memory_to_"))
+            .map(|(name, route)| (name.clone(), route.clone()))
+            .unwrap();
+
+        // Find the route that goes from the broker back to memory.
+        let (out_route_name, route_from_broker) = bridge
+            .routes()
+            .find(|(name, _)| name.ends_with("_to_memory"))
+            .map(|(name, route)| (name.clone(), route.clone()))
+            .unwrap();
+
         // The input to the system is the input of the `memory_to_*` route.
-        let in_channel = route_to_broker
-            .input
-            .channel()
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Input of route '{}' must be a MemoryEndpoint",
-                    in_route_name
-                )
-            });
+        let in_channel = route_to_broker.input.channel().unwrap();
 
         // The final output from the system is the output of the `*_to_memory` route.
-        let out_channel = route_from_broker
-            .output
-            .channel()
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Output of route '{}' must be a MemoryEndpoint",
-                    out_route_name
-                )
-            });
+        let out_channel = route_from_broker.output.channel().unwrap();
 
         Self {
             _temp_dir: temp_dir,
             bridge,
             shutdown_tx,
-            out_route_name,
+            out_route_name: out_route_name.to_string(),
             in_channel,
             out_channel,
             sent_message_ids,
@@ -246,7 +225,8 @@ async fn run_pipeline_test_internal(
     num_messages: usize,
     is_performance_test: bool,
 ) {
-    let app_config: AppConfig = serde_yaml_ng::from_str(config_yaml).expect("Failed to parse YAML config");
+    let app_config: AppConfig =
+        serde_yaml_ng::from_str(config_yaml).expect("Failed to parse YAML config");
     let mut harness = TestHarness::new(app_config, num_messages);
     let metrics = TestMetrics::new();
 

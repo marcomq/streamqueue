@@ -9,11 +9,32 @@ use streamqueue::endpoints::mqtt::{MqttConsumer, MqttPublisher};
 use uuid::Uuid;
 
 const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
+const CONFIG_YAML: &str = r#"
+sled_path: "/tmp/integration_test_db_mqtt"
+dedup_ttl_seconds: 60
+
+routes:
+  memory_to_mqtt:
+    in:
+      memory: { topic: "test-in-mqtt" }
+    out:
+      mqtt: { url: "mqtt://localhost:1883", topic: "test_topic_mqtt" }
+
+  mqtt_to_memory:
+    in:
+      mqtt: { url: "mqtt://localhost:1883", topic: "test_topic_mqtt" }
+    out:
+      memory: { topic: "test-out-mqtt", capacity: {out_capacity} } }
+"#;
 
 pub async fn test_mqtt_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/mqtt.yml", || async {
-        run_pipeline_test("mqtt", "tests/integration/config/mqtt.yml").await;
+        let config_yaml = CONFIG_YAML.replace(
+            "{out_capacity}",
+            &(PERF_TEST_MESSAGE_COUNT + 1000).to_string(),
+        ); // Use a small capacity for non-perf test
+        run_pipeline_test("mqtt", &config_yaml).await;
     })
     .await;
 }
@@ -21,12 +42,11 @@ pub async fn test_mqtt_pipeline() {
 pub async fn test_mqtt_performance_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/mqtt.yml", || async {
-        run_performance_pipeline_test(
-            "mqtt",
-            "tests/integration/config/mqtt.yml",
-            PERF_TEST_MESSAGE_COUNT,
-        )
-        .await;
+        let config_yaml = CONFIG_YAML.replace(
+            "{out_capacity}",
+            &(PERF_TEST_MESSAGE_COUNT + 1000).to_string(),
+        ); // Use a small capacity for non-perf test
+        run_performance_pipeline_test("mqtt", &config_yaml, PERF_TEST_MESSAGE_COUNT).await;
     })
     .await;
 }

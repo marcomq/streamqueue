@@ -8,11 +8,32 @@ use super::common::{
 use streamqueue::endpoints::mongodb::{MongoDbConsumer, MongoDbPublisher};
 const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 10_000;
 const PERF_TEST_CONCURRENCY: usize = 100;
+const CONFIG_YAML: &str = r#"
+sled_path: "/tmp/integration_test_db_mongodb"
+dedup_ttl_seconds: 60
+
+routes:
+  memory_to_mongodb:
+    in:
+      memory: { topic: "test-in-mongodb" }
+    out:
+      mongodb: { url: "mongodb://localhost:27017", database: "streamqueue_test", collection: "test_collection" }
+
+  mongodb_to_memory:
+    in:
+      mongodb: { url: "mongodb://localhost:27017", database: "streamqueue_test", collection: "test_collection" }
+    out:
+      memory: { topic: "test-out-mongodb", capacity: {out_capacity} }
+"#;
 
 pub async fn test_mongodb_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/mongodb.yml", || async {
-        run_pipeline_test("mongodb", "tests/integration/config/mongodb.yml").await;
+        let config_yaml = CONFIG_YAML.replace(
+            "{out_capacity}",
+            &(PERF_TEST_MESSAGE_COUNT + 1000).to_string(),
+        );
+        run_pipeline_test("mongodb", &config_yaml).await;
     })
     .await;
 }
@@ -20,12 +41,11 @@ pub async fn test_mongodb_pipeline() {
 pub async fn test_mongodb_performance_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/mongodb.yml", || async {
-        run_performance_pipeline_test(
-            "mongodb",
-            "tests/integration/config/mongodb.yml",
-            PERF_TEST_MESSAGE_COUNT,
-        )
-        .await;
+        let config_yaml = CONFIG_YAML.replace(
+            "{out_capacity}",
+            &(PERF_TEST_MESSAGE_COUNT + 1000).to_string(),
+        );
+        run_performance_pipeline_test("mongodb", &config_yaml, PERF_TEST_MESSAGE_COUNT).await;
     })
     .await;
 }

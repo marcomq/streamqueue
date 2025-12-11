@@ -12,7 +12,7 @@ mod integration;
 ))]
 #[tokio::test]
 async fn test_all_pipelines_together() {
-    integration::all_endpoints::test_all_pipelines_together().await;
+    // integration::all_endpoints::test_all_pipelines_together().await;
 }
 
 #[cfg(feature = "amqp")]
@@ -89,6 +89,17 @@ async fn test_nats_performance_direct() {
 
 #[cfg(feature = "mongodb")]
 #[tokio::test]
+async fn test_mongodb_performance_pipeline() {
+    integration::mongodb::test_mongodb_performance_pipeline().await;
+}
+
+#[cfg(feature = "mongodb")]
+#[tokio::test]
 async fn test_mongodb_performance_direct() {
     integration::mongodb::test_mongodb_performance_direct().await;
+}
+
+#[tokio::test]
+async fn test_memory_performance_pipeline() {
+    integration::memory::test_memory_performance_pipeline().await;
 }

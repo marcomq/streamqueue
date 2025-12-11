@@ -8,7 +8,7 @@ use std::{sync::Arc, time::Duration};
 use streamqueue::endpoints::amqp::{AmqpConsumer, AmqpPublisher};
 
 const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
-const CONFIG_YAML: &str = r#"""
+const CONFIG_YAML: &str = r#"
 sled_path: "/tmp/integration_test_db_amqp"
 dedup_ttl_seconds: 60
 
@@ -23,13 +23,17 @@ routes:
     in:
       amqp: { url: "amqp://guest:guest@localhost:5672/%2f", queue: "test_queue_amqp", await_ack: true  }
     out:
-      memory: { topic: "amqp-test-out" }
-"""#;
+      memory: { topic: "amqp-test-out", capacity: {out_capacity} }
+"#;
 
 pub async fn test_amqp_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/amqp.yml", || async {
-        run_pipeline_test("AMQP", CONFIG_YAML).await;
+        let config_yaml = CONFIG_YAML.replace(
+            "{out_capacity}",
+            &(PERF_TEST_MESSAGE_COUNT + 1000).to_string(),
+        );
+        run_pipeline_test("AMQP", &config_yaml).await;
     })
     .await;
 }
@@ -37,12 +41,11 @@ pub async fn test_amqp_pipeline() {
 pub async fn test_amqp_performance_pipeline() {
     setup_logging();
     run_test_with_docker("tests/integration/docker-compose/amqp.yml", || async {
-        run_performance_pipeline_test(
-            "AMQP",
-            CONFIG_YAML,
-            PERF_TEST_MESSAGE_COUNT,
-        )
-        .await;
+        let config_yaml = CONFIG_YAML.replace(
+            "{out_capacity}",
+            &(PERF_TEST_MESSAGE_COUNT + 1000).to_string(),
+        );
+        run_performance_pipeline_test("AMQP", &config_yaml, PERF_TEST_MESSAGE_COUNT).await;
     })
     .await;
 }

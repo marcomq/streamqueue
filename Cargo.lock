@@ -3691,7 +3691,6 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
- "yaml-rust2",
 ]
 
 [[package]]

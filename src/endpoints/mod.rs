@@ -184,9 +184,7 @@ pub async fn create_dlq_from_route(
 impl ConsumerEndpoint {
     pub fn channel(&self) -> Result<memory::MemoryChannel> {
         match &self.endpoint_type {
-            ConsumerEndpointType::Memory(cfg) => {
-                Ok(memory::get_or_create_channel(&cfg.config))
-            }
+            ConsumerEndpointType::Memory(cfg) => Ok(memory::get_or_create_channel(&cfg.config)),
             _ => Err(anyhow!("channel() called on non-memory ConsumerEndpoint")),
         }
     }
@@ -195,9 +193,7 @@ impl ConsumerEndpoint {
 impl PublisherEndpoint {
     pub fn channel(&self) -> Result<memory::MemoryChannel> {
         match &self.endpoint_type {
-            PublisherEndpointType::Memory(cfg) => {
-                Ok(memory::get_or_create_channel(&cfg.config))
-            }
+            PublisherEndpointType::Memory(cfg) => Ok(memory::get_or_create_channel(&cfg.config)),
             _ => Err(anyhow!("channel() called on non-memory ConsumerEndpoint")),
         }
     }

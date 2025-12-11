@@ -7,6 +7,7 @@ pub mod kafka;
 pub mod mongodb;
 #[cfg(feature = "mqtt")]
 pub mod mqtt;
+pub mod memory;
 
 #[cfg(all(
     feature = "nats",

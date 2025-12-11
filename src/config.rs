@@ -174,7 +174,6 @@ pub struct MongoDbEndpoint {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub struct PublisherEndpoint {
-    // pub connection: String,
     #[serde(flatten)]
     pub endpoint_type: PublisherEndpointType,
 }
@@ -182,7 +181,6 @@ pub struct PublisherEndpoint {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub struct ConsumerEndpoint {
-    // pub connection: String,
     #[serde(flatten)]
     pub endpoint_type: ConsumerEndpointType,
 }
@@ -238,6 +236,7 @@ fn default_true() -> bool {
 pub struct Config {
     #[serde(default)]
     pub logger: String,
+    #[serde(default = "info")]
     pub log_level: String,
     pub sled_path: String,
     pub dedup_ttl_seconds: u64,
@@ -245,6 +244,10 @@ pub struct Config {
     pub metrics: MetricsConfig,
     #[serde(default)]
     pub routes: HashMap<String, Route>,
+}
+
+fn info() -> String {
+    "info".to_string()
 }
 
 impl Default for Config {
@@ -425,7 +428,6 @@ mod tests {
     #[test]
     fn test_config_deserialization() {
         let yaml_config = r#"
-log_level: "debug"
 sled_path: "/tmp/test_db"
 dedup_ttl_seconds: 3600
 
