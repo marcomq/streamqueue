@@ -342,7 +342,8 @@ impl RouteRunner {
                         }
                     }
                     Err(e) => {
-                        if e.downcast_ref::<ConsumerError>() == Some(&ConsumerError::ChannelClosed) {
+                        if e.downcast_ref::<ConsumerError>() == Some(&ConsumerError::ChannelClosed)
+                        {
                             info!("Consumer stream ended (e.g. EOF). Stopping consumer task.");
                         } else {
                             info!(error = %e, "Underlying consumer failed. Stopping consumer task.");

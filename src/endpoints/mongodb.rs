@@ -144,6 +144,57 @@ impl MongoDbConsumer {
 #[async_trait]
 impl MessageConsumer for MongoDbConsumer {
     async fn receive(&mut self) -> anyhow::Result<(CanonicalMessage, CommitFunc)> {
+        if let Some(stream_mutex) = &self.change_stream {
+            // Change Stream Path: More efficient for replica sets
+            let mut stream = stream_mutex.lock().await;
+            loop {
+                let event = match stream.next().await {
+                    Some(Ok(evt)) => evt,
+                    Some(Err(e)) => return Err(e.into()),
+                    None => return Err(anyhow!("MongoDB change stream ended unexpectedly")),
+                };
+
+                let doc_id = match event
+                    .full_document
+                    .as_ref()
+                    .and_then(|d| d.get_object_id("_id").ok())
+                {
+                    Some(id) => id,
+                    None => continue, // Not an insert or document missing _id, wait for next event
+                };
+
+                // Attempt to claim this specific document
+                if let Some((msg, commit)) = self.try_claim_document(doc! {"_id": doc_id}).await? {
+                    return Ok((msg, commit));
+                }
+                // If we failed to claim it, it means another consumer got it first.
+                // We just loop and wait for the next change event.
+            }
+        } else {
+            // Polling Path: Fallback for standalone instances
+            loop {
+                if let Some((msg, commit)) = self.try_claim_document(doc! {}).await? {
+                    return Ok((msg, commit));
+                }
+                // No document found, wait before polling again
+                tokio::time::sleep(self.polling_interval).await;
+            }
+        }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl MongoDbConsumer {
+    /// Atomically finds and locks a document matching the filter.
+    /// If the filter is empty, it finds any available document.
+    /// If a document is successfully claimed, it returns the message and commit function.
+    async fn try_claim_document(
+        &self,
+        extra_filter: Document,
+    ) -> anyhow::Result<Option<(CanonicalMessage, CommitFunc)>> {
         loop {
             // Atomically find a message that is not locked or whose lock has expired,
             // and lock it for this consumer for 60 seconds.
@@ -153,13 +204,15 @@ impl MessageConsumer for MongoDbConsumer {
             let lock_duration_secs = 60;
             let locked_until = now + lock_duration_secs;
 
-            let filter = doc! {
+            let mut filter = doc! {
                 "$or": [
                     { "locked_until": { "$exists": false } },
                     { "locked_until": null },
                     { "locked_until": { "$lt": now } }
                 ]
             };
+            filter.extend(extra_filter.clone());
+
             let update = doc! { "$set": { "locked_until": locked_until } };
 
             // Projection to only return the fields we need, reducing data over the wire.
@@ -210,27 +263,14 @@ impl MessageConsumer for MongoDbConsumer {
                         }) as BoxFuture<'static, ()>
                     });
 
-                    return Ok((msg, commit));
+                    return Ok(Some((msg, commit)));
                 }
                 Ok(None) => {
-                    // No available messages, wait for a new one to be inserted.
-                    if let Some(stream_mutex) = &self.change_stream {
-                        // We wait on the change stream for a new insert event.
-                        let mut stream = stream_mutex.lock().await;
-                        if stream.next().await.is_none() {
-                            return Err(anyhow!("MongoDB change stream ended"));
-                        }
-                    } else {
-                        // Fallback to polling if not using a change stream.
-                        tokio::time::sleep(self.polling_interval).await;
-                    }
+                    // No document found or claimed
+                    return Ok(None);
                 }
                 Err(e) => return Err(e.into()),
             }
         }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
