@@ -14,23 +14,23 @@ const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
 
 pub async fn test_kafka_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.kafka.yml", || async {
-        run_pipeline_test("Kafka", "tests/config.kafka").await;
+    run_test_with_docker("tests/integration/docker-compose/kafka.yml", || async {
+        run_pipeline_test("kafka", "tests/integration/config/kafka.yml").await;
     })
     .await;
 }
 
 pub async fn test_kafka_performance_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.kafka.yml", || async {
-        run_performance_pipeline_test("Kafka", "tests/config.kafka", PERF_TEST_MESSAGE_COUNT).await;
+    run_test_with_docker("tests/integration/docker-compose/kafka.yml", || async {
+        run_performance_pipeline_test("kafka", "tests/integration/config/kafka.yml", PERF_TEST_MESSAGE_COUNT).await;
     })
     .await;
 }
 
 pub async fn test_kafka_performance_direct() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.kafka.yml", || async {
+    run_test_with_docker("tests/integration/docker-compose/kafka.yml", || async {
         let topic = "perf_test_kafka_direct";
         let config = streamqueue::config::KafkaConfig {
             brokers: "localhost:9092".to_string(),

@@ -5,14 +5,14 @@ sled_path: "/tmp/integration_test_db_kafka"
 dedup_ttl_seconds: 60
 
 routes:
-  file_to_kafka:
+  memory_to_kafka:
     in:
-      file: { path: "/tmp/input.log" }
+      memory: { topic: "test-in" }
     out:
       kafka: { brokers: "localhost:9092", topic: "test_topic_kafka" }
 
-  kafka_to_file:
+  kafka_to_memory:
     in:
       kafka: { brokers: "localhost:9092", group_id: "integration_test_group_kafka", topic: "test_topic_kafka" }
     out:
-      file: { path: "/tmp/output_kafka.log" }
+      memory: { topic: "test-out" }

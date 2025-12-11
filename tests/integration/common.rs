@@ -1,25 +1,28 @@
 #![allow(dead_code)] // This module contains helpers used by various integration tests.
 use async_channel::{bounded, Receiver, Sender};
 use chrono;
+use config::File as ConfigFile;
 use serde_json::json;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use streamqueue::config::Config as AppConfig;
 use streamqueue::consumers::{CommitFunc, MessageConsumer};
 use streamqueue::model::CanonicalMessage;
 use streamqueue::publishers::MessagePublisher;
 use tempfile::tempdir;
 
-use config::File as ConfigFile;
 use metrics_util::debugging::{DebugValue, DebuggingRecorder, Snapshotter};
 use metrics_util::MetricKind;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+
+use streamqueue::config::{Config as AppConfig, MemoryConfig};
+use streamqueue::endpoints::memory::MemoryChannel;
+use streamqueue::Bridge;
 
 /// A helper for capturing and querying metrics during tests.
 pub struct TestMetrics {
@@ -140,104 +143,103 @@ pub fn generate_test_messages(num_messages: usize) -> (Vec<CanonicalMessage>, Ha
     (messages, sent_messages)
 }
 
-pub async fn run_pipeline_test(broker_name: &str, config_file_name: &str) {
-    let temp_dir = tempdir().unwrap();
+/// A test harness to simplify integration testing of bridge pipelines.
+struct TestHarness {
+    _temp_dir: tempfile::TempDir,
+    bridge: Bridge,
+    shutdown_tx: tokio::sync::watch::Sender<()>,
+    out_route_name: String,
+    in_channel: MemoryChannel,
+    out_channel: MemoryChannel,
+    sent_message_ids: HashSet<String>,
+    messages_to_send: Vec<CanonicalMessage>,
+}
 
-    let num_messages = 5;
-    let (messages_to_send, sent_message_ids) = generate_test_messages(num_messages);
+impl TestHarness {
+    /// Creates a new TestHarness for a given broker and configuration.
+    fn new(broker_name: &str, config_file_name: &str, num_messages: usize) -> Self {
+        let temp_dir = tempdir().unwrap();
 
-    let full_config_settings = config::Config::builder()
-        .add_source(ConfigFile::with_name(config_file_name).required(true))
-        .build()
-        .unwrap();
-    let full_config: AppConfig = full_config_settings.try_deserialize().unwrap();
+        let (messages_to_send, sent_message_ids) = generate_test_messages(num_messages);
 
-    let mut test_config = AppConfig::default();
-    test_config.log_level = "info".to_string();
-    test_config.sled_path = temp_dir.path().join("db").to_str().unwrap().to_string();
+        let full_config_settings = config::Config::builder()
+            .add_source(ConfigFile::with_name(config_file_name).required(true))
+            .build()
+            .unwrap();
+        let full_config: AppConfig = full_config_settings.try_deserialize().unwrap();
 
-    let memory_to_broker_route_name = format!("memory_to_{}", broker_name.to_lowercase());
-    let broker_to_memory_route_name = format!("{}_to_memory", broker_name.to_lowercase());
-    let route_to_broker = full_config
-        .routes
-        .get(&memory_to_broker_route_name)
-        .unwrap()
-        .clone();
-    let route_from_broker = full_config
-        .routes
-        .get(&broker_to_memory_route_name)
-        .unwrap()
-        .clone();
+        let mut test_config = AppConfig::default();
+        test_config.log_level = "info".to_string();
+        test_config.sled_path = temp_dir.path().join("db").to_str().unwrap().to_string();
 
-    test_config
-        .routes
-        .insert(memory_to_broker_route_name.to_string(), route_to_broker);
-    test_config
-        .routes
-        .insert(broker_to_memory_route_name.to_string(), route_from_broker);
+        let in_route_name = format!("memory_to_{}", broker_name.to_lowercase());
+        let out_route_name = format!("{}_to_memory", broker_name.to_lowercase());
 
-    println!("--- Using Test Configuration for {} ---", broker_name);
+        let route_to_broker = full_config
+            .routes
+            .get(&in_route_name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Route '{}' not found in config '{}'",
+                    in_route_name, config_file_name
+                )
+            })
+            .clone();
+        let route_from_broker = full_config
+            .routes
+            .get(&out_route_name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Route '{}' not found in config '{}'",
+                    out_route_name, config_file_name
+                )
+            })
+            .clone();
 
-    let metrics = TestMetrics::new();
+        test_config
+            .routes
+            .insert(in_route_name.clone(), route_to_broker);
+        test_config
+            .routes
+            .insert(out_route_name.clone(), route_from_broker);
 
-    let mut bridge = streamqueue::Bridge::new(test_config);
-    let shutdown_tx = bridge.get_shutdown_handle();
-    let bridge_task = bridge.run();
+        let bridge = Bridge::new(test_config);
+        let shutdown_tx = bridge.get_shutdown_handle();
 
-    // Get the memory channels to interact with the bridge
-    let in_channel =
-        streamqueue::endpoints::memory::get_or_create_channel(&streamqueue::config::MemoryConfig {
-            topic: "test-in".to_string(),
-            ..Default::default()
-        });
-    let out_channel =
-        streamqueue::endpoints::memory::get_or_create_channel(&streamqueue::config::MemoryConfig {
-            topic: "test-out".to_string(),
-            ..Default::default()
-        });
+        let in_channel =
+            streamqueue::endpoints::memory::get_or_create_channel(&MemoryConfig {
+                topic: "test-in".to_string(),
+                ..Default::default()
+            });
+        let out_channel =
+            streamqueue::endpoints::memory::get_or_create_channel(&MemoryConfig {
+                topic: "test-out".to_string(),
+                ..Default::default()
+            });
 
-    // Send messages to the input channel
-    in_channel.fill_messages(messages_to_send).await.unwrap();
-
-    let timeout = Duration::from_secs(30);
-    let start_time = std::time::Instant::now();
-
-    while start_time.elapsed() < timeout {
-        let sent_count = metrics.get_cumulative_counter(
-            "bridge_messages_received_total",
-            &broker_to_memory_route_name,
-        );
-        if sent_count >= num_messages as u64 {
-            println!(
-                "[{}] Metrics show {} messages sent. Proceeding to verification.",
-                broker_name, sent_count
-            );
-            break;
+        Self {
+            _temp_dir: temp_dir,
+            bridge,
+            shutdown_tx,
+            out_route_name,
+            in_channel,
+            out_channel,
+            sent_message_ids,
+            messages_to_send,
         }
-        tokio::time::sleep(Duration::from_millis(500)).await;
     }
-    bridge.flush_routes().await;
 
-    if shutdown_tx.send(()).is_err() {
-        println!("WARN: Could not send shutdown signal, bridge may have already stopped.");
+    /// Sends all generated test messages to the input channel.
+    async fn send_messages(&self) {
+        self.in_channel
+            .fill_messages(self.messages_to_send.clone())
+            .await
+            .unwrap();
     }
-    let _ = bridge_task.await;
+}
 
-    let received_ids = read_and_drain_memory_channel(&out_channel);
-    assert_eq!(
-        received_ids.len(),
-        num_messages,
-        "TEST FAILED for [{}]: Expected {} messages, but found {}. The output file might be missing or empty.",
-        broker_name,
-        num_messages,
-        received_ids.len(),
-    );
-    assert_eq!(
-        sent_message_ids, received_ids,
-        "TEST FAILED for [{}]: The set of received message IDs does not match the set of sent message IDs.",
-        broker_name,
-    );
-    println!("Successfully verified {} route!", broker_name);
+pub async fn run_pipeline_test(broker_name: &str, config_file_name: &str) {
+    run_pipeline_test_internal(broker_name, config_file_name, 5, false).await;
 }
 
 pub async fn run_performance_pipeline_test(
@@ -245,123 +247,75 @@ pub async fn run_performance_pipeline_test(
     config_file_name: &str,
     num_messages: usize,
 ) {
-    let temp_dir = tempdir().unwrap();
+    run_pipeline_test_internal(broker_name, config_file_name, num_messages, true).await;
+}
 
-    println!(
-        "[{}] Generating {} messages for performance test...",
-        broker_name, num_messages
-    );
-    let (messages_to_send, sent_message_ids) = generate_test_messages(num_messages);
-    println!("[{}] Finished generating messages.", broker_name);
-
-    let full_config_settings = config::Config::builder()
-        .add_source(ConfigFile::with_name(config_file_name).required(true))
-        .build()
-        .unwrap();
-    let full_config: AppConfig = full_config_settings.try_deserialize().unwrap();
-
-    let mut test_config = AppConfig::default();
-    test_config.log_level = "info".to_string();
-    test_config.sled_path = temp_dir.path().join("db").to_str().unwrap().to_string();
-
-    let memory_to_broker_route_name = format!("memory_to_{}", broker_name.to_lowercase());
-    let broker_to_memory_route_name = format!("{}_to_memory", broker_name.to_lowercase());
-    let route_to_broker = full_config
-        .routes
-        .get(&memory_to_broker_route_name)
-        .unwrap()
-        .clone();
-    let route_from_broker = full_config
-        .routes
-        .get(&broker_to_memory_route_name)
-        .unwrap()
-        .clone();
-
-    test_config
-        .routes
-        .insert(memory_to_broker_route_name.to_string(), route_to_broker);
-    test_config
-        .routes
-        .insert(broker_to_memory_route_name.to_string(), route_from_broker);
-
-    let mut bridge = streamqueue::Bridge::new(test_config);
-    let shutdown_tx = bridge.get_shutdown_handle();
-    println!("[{}] Starting performance test...", broker_name);
-
+async fn run_pipeline_test_internal(
+    broker_name: &str,
+    config_file_name: &str,
+    num_messages: usize,
+    is_performance_test: bool,
+) {
+    let mut harness = TestHarness::new(broker_name, config_file_name, num_messages);
     let metrics = TestMetrics::new();
 
+    let bridge_handle = harness.bridge.run();
     let start_time = std::time::Instant::now();
 
-    // Get the memory channels to interact with the bridge
-    let in_channel =
-        streamqueue::endpoints::memory::get_or_create_channel(&streamqueue::config::MemoryConfig {
-            topic: "test-in".to_string(),
-            ..Default::default()
-        });
-    let out_channel =
-        streamqueue::endpoints::memory::get_or_create_channel(&streamqueue::config::MemoryConfig {
-            topic: "test-out".to_string(),
-            ..Default::default()
-        });
+    harness.send_messages().await;
 
-    let bridge_handle = bridge.run();
-
-    in_channel.fill_messages(messages_to_send).await.unwrap();
-
-    let timeout = Duration::from_secs(40);
-    while start_time.elapsed() < timeout {
-        let sent_count = metrics.get_cumulative_counter(
-            "bridge_messages_received_total",
-            &broker_to_memory_route_name,
-        );
-        if sent_count >= num_messages as u64 {
-            println!(
-                "[{}] Metrics show {} messages sent. Proceeding to verification.",
-                broker_name, sent_count
-            );
+    // Wait for all messages to be processed by checking the metrics.
+    let timeout = if is_performance_test {
+        Duration::from_secs(60)
+    } else {
+        Duration::from_secs(30)
+    };
+    let wait_start = Instant::now();
+    while wait_start.elapsed() < timeout {
+        let received_count =
+            metrics.get_cumulative_counter("bridge_messages_received_total", &harness.out_route_name);
+        if received_count >= num_messages as u64 {
             break;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
-    bridge.flush_routes().await;
 
-    let received_ids = read_and_drain_memory_channel(&out_channel);
-    assert_eq!(
-        received_ids.len(),
-        num_messages,
-        "TEST FAILED for [{}]: The set of received message IDs does not match the set of sent message IDs.",
-        broker_name
-    );
-    let duration = start_time.elapsed();
-    if shutdown_tx.send(()).is_err() {
+    if harness.shutdown_tx.send(()).is_err() {
         println!("WARN: Could not send shutdown signal, bridge may have already stopped.");
     }
 
-    let _ = bridge_handle.await;
+    let received_ids = read_and_drain_memory_channel(&harness.out_channel);
+    let duration = start_time.elapsed();
 
-    let messages_per_second = num_messages as f64 / duration.as_secs_f64();
-
-    println!("\n--- {} Performance Test Results ---", broker_name);
-    println!(
-        "Processed {} messages in {:.3} seconds.",
-        received_ids.len(),
-        duration.as_secs_f64()
-    );
-    println!("Rate: {:.2} messages/second", messages_per_second);
-    println!("--------------------------------\n");
+    if is_performance_test {
+        let messages_per_second = num_messages as f64 / duration.as_secs_f64();
+        println!("\n--- {} Performance Test Results ---", broker_name);
+        println!(
+            "Processed {} messages in {:.3} seconds.",
+            received_ids.len(),
+            duration.as_secs_f64()
+        );
+        println!("Rate: {:.2} messages/second", messages_per_second);
+        println!("--------------------------------\n");
+    }
 
     assert_eq!(
         received_ids.len(),
         num_messages,
-        "Did not receive all messages for {}.",
-        broker_name
+        "TEST FAILED for [{}]: Expected {} messages, but found {}.",
+        broker_name,
+        num_messages,
+        received_ids.len()
     );
     assert_eq!(
-        sent_message_ids, received_ids,
-        "Message IDs do not match for {}.",
+        harness.sent_message_ids, received_ids,
+        "TEST FAILED for [{}]: The set of received message IDs does not match the set of sent message IDs.",
         broker_name
     );
-    println!("[{}] Verification successful.", broker_name);
+
+    println!("Successfully verified {} route!", broker_name);
+
+    let _ = bridge_handle.await;
 }
 
 static LOG_GUARD: Mutex<Option<WorkerGuard>> = Mutex::new(None);

@@ -97,7 +97,6 @@ pub fn get_or_create_channel(config: &MemoryConfig) -> MemoryChannel {
         .entry(config.topic.clone()) // Use the HashMap's entry API
         .or_insert_with(|| {
             info!(topic = %config.topic, "Creating new runtime memory channel");
-            dbg!(config.capacity);
             MemoryChannel::new(config.capacity.unwrap_or(100))
         })
         .clone()

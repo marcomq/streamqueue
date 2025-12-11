@@ -15,18 +15,16 @@ const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
 
 pub async fn test_mqtt_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.mqtt.yml", || async {
-        let test_name = format!("MQTT-{}", Uuid::new_v4().as_simple());
-        run_pipeline_test(&test_name, "tests/config.mqtt").await;
+    run_test_with_docker("tests/integration/docker-compose/mqtt.yml", || async {
+        run_pipeline_test("mqtt", "tests/integration/config/mqtt.yml").await;
     })
     .await;
 }
 
 pub async fn test_mqtt_performance_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.mqtt.yml", || async {
-        let test_name = format!("MQTT-Perf-{}", Uuid::new_v4().as_simple());
-        run_performance_pipeline_test(&test_name, "tests/config.mqtt", PERF_TEST_MESSAGE_COUNT)
+    run_test_with_docker("tests/integration/docker-compose/mqtt.yml", || async {
+        run_performance_pipeline_test("mqtt", "tests/integration/config/mqtt.yml", PERF_TEST_MESSAGE_COUNT)
             .await;
     })
     .await;
@@ -34,7 +32,7 @@ pub async fn test_mqtt_performance_pipeline() {
 
 pub async fn test_mqtt_performance_direct() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.mqtt.yml", || async {
+    run_test_with_docker("tests/integration/docker-compose/mqtt.yml", || async {
         let unique_id = Uuid::new_v4().as_simple().to_string();
         let topic = "test_topic_mqtt/direct";
         let publisher_id = format!("perftest-pub-{}", unique_id);

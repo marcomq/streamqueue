@@ -14,23 +14,23 @@ const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
 
 pub async fn test_amqp_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.amqp.yml", || async {
-        run_pipeline_test("AMQP", "tests/config.amqp").await;
+    run_test_with_docker("tests/integration/docker-compose/amqp.yml", || async {
+        run_pipeline_test("AMQP", "tests/integration/config/amqp.yml").await;
     })
     .await;
 }
 
 pub async fn test_amqp_performance_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.amqp.yml", || async {
-        run_performance_pipeline_test("AMQP", "tests/config.amqp", PERF_TEST_MESSAGE_COUNT).await;
+    run_test_with_docker("tests/integration/docker-compose/amqp.yml", || async {
+        run_performance_pipeline_test("AMQP", "tests/integration/config/amqp.yml", PERF_TEST_MESSAGE_COUNT).await;
     })
     .await;
 }
 
 pub async fn test_amqp_performance_direct() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.amqp.yml", || async {
+    run_test_with_docker("tests/integration/docker-compose/amqp.yml", || async {
         let queue = "perf_test_amqp_direct";
         let config = streamqueue::config::AmqpConfig {
             url: "amqp://guest:guest@localhost:5672/%2f".to_string(),

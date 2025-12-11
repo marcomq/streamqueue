@@ -15,6 +15,7 @@ use tracing::{error, info, warn};
 pub struct Bridge {
     runners: Arc<Mutex<HashMap<String, mpsc::Sender<RouteRunnerCommand>>>>,
     config: Config,
+    route_tasks: Arc<Mutex<JoinSet<()>>>,
     shutdown_rx: watch::Receiver<()>,
     shutdown_tx: watch::Sender<()>,
 }
@@ -26,6 +27,7 @@ impl Bridge {
         Self {
             runners: Arc::new(Mutex::new(HashMap::new())),
             config,
+            route_tasks: Arc::new(Mutex::new(JoinSet::new())),
             shutdown_rx,
             shutdown_tx,
         }
@@ -56,10 +58,11 @@ impl Bridge {
         let mut shutdown_rx = self.shutdown_rx.clone();
         let routes = self.config.routes.clone();
         let runners = self.runners.clone();
+        let route_tasks_handle = self.route_tasks.clone();
         let global_config = self.config.clone();
         tokio::spawn(async move {
             info!("Bridge starting up...");
-            let mut route_tasks = JoinSet::new();
+            let mut route_tasks = route_tasks_handle.lock().await;
             let num_routes = routes.len();
             let barrier = Arc::new(tokio::sync::Barrier::new(num_routes));
 
@@ -82,20 +85,27 @@ impl Bridge {
                 return Ok(());
             }
 
-            // Wait for either a shutdown signal or for all route tasks to complete.
-            tokio::select! {
-                _ = shutdown_rx.changed() => {
-                    info!("Global shutdown signal received. Draining all routes.");
-                }
-                _res = async {
-                    while let Some(res) = route_tasks.join_next().await {
-                        if let Err(e) = res {
-                            error!("A route task panicked or failed: {}", e);
-                        }
+            // If there are routes, wait for them to complete or for a shutdown signal.
+            // If there are no routes, just wait for the shutdown signal.
+            if !route_tasks.is_empty() {
+                tokio::select! {
+                    _ = shutdown_rx.changed() => {
+                        info!("Global shutdown signal received. Draining all routes.");
                     }
-                } => {
-                     info!("All routes have completed their work. Bridge shutting down.");
+                    _ = async {
+                        while let Some(res) = route_tasks.join_next().await {
+                            if let Err(e) = res {
+                                error!("A route task panicked or failed: {}", e);
+                            }
+                        }
+                    } => {
+                        info!("All routes have completed their work. Bridge shutting down.");
+                    }
                 }
+            } else {
+                // No routes, so just wait for the shutdown signal.
+                let _ = shutdown_rx.changed().await;
+                info!("Global shutdown signal received. Draining all routes.");
             }
 
             // Ensure all tasks are finished.
@@ -103,5 +113,15 @@ impl Bridge {
             info!("Bridge has shut down.");
             Ok(())
         })
+    }
+
+    /// Waits for all route tasks to complete.
+    pub async fn wait_for_completion(&self) {
+        let mut tasks = self.route_tasks.lock().await;
+        while let Some(res) = tasks.join_next().await {
+            if let Err(e) = res {
+                error!("A route task panicked or failed during wait_for_completion: {}", e);
+            }
+        }
     }
 }

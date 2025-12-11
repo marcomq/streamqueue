@@ -14,23 +14,23 @@ const PERF_TEST_MESSAGE_COUNT_DIRECT: usize = 20_000;
 
 pub async fn test_nats_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.nats.yml", || async {
-        run_pipeline_test("NATS", "tests/config.nats").await;
+    run_test_with_docker("tests/integration/docker-compose/nats.yml", || async {
+        run_pipeline_test("nats", "tests/integration/config/nats.yml").await;
     })
     .await;
 }
 
 pub async fn test_nats_performance_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.nats.yml", || async {
-        run_performance_pipeline_test("NATS", "tests/config.nats", PERF_TEST_MESSAGE_COUNT).await;
+    run_test_with_docker("tests/integration/docker-compose/nats.yml", || async {
+        run_performance_pipeline_test("nats", "tests/integration/config/nats.yml", PERF_TEST_MESSAGE_COUNT).await;
     })
     .await;
 }
 
 pub async fn test_nats_performance_direct() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.nats.yml", || async {
+    run_test_with_docker("tests/integration/docker-compose/nats.yml", || async {
         let stream_name = "perf_stream_nats_direct";
         let subject = format!("{}.direct", stream_name);
         let config = streamqueue::config::NatsConfig {

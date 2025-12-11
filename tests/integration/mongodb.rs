@@ -15,16 +15,16 @@ const PERF_TEST_CONCURRENCY: usize = 100;
 
 pub async fn test_mongodb_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.mongodb.yml", || async {
-        run_pipeline_test("MONGODB", "tests/config.mongodb").await;
+    run_test_with_docker("tests/integration/docker-compose/mongodb.yml", || async {
+        run_pipeline_test("mongodb", "tests/integration/config/mongodb.yml").await;
     })
     .await;
 }
 
 pub async fn test_mongodb_performance_pipeline() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.mongodb.yml", || async {
-        run_performance_pipeline_test("MONGODB", "tests/config.mongodb", PERF_TEST_MESSAGE_COUNT)
+    run_test_with_docker("tests/integration/docker-compose/mongodb.yml", || async {
+        run_performance_pipeline_test("mongodb", "tests/integration/config/mongodb.yml", PERF_TEST_MESSAGE_COUNT)
             .await;
     })
     .await;
@@ -32,7 +32,7 @@ pub async fn test_mongodb_performance_pipeline() {
 
 pub async fn test_mongodb_performance_direct() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.mongodb.yml", || async {
+    run_test_with_docker("tests/integration/docker-compose/mongodb.yml", || async {
         let collection_name = "perf_mongodb_direct";
         let config = streamqueue::config::MongoDbConfig {
             url: "mongodb://localhost:27017".to_string(),

@@ -21,6 +21,7 @@ async fn test_memory_to_memory_pipeline() {
 
     let mut config = Config::default();
     config.log_level = "info".to_string();
+    config.metrics.enabled = false;
     let in_memory_config = MemoryConfig {
         topic: "mem-in".to_string(),
         capacity: Some(200), // A reasonable capacity for the input channel

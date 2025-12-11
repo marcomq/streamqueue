@@ -1,4 +1,4 @@
-# CONFIG_FILE=tests/config.http2file.yml cargo run
+# CONFIG_FILE=tests/integration/config/http2file.yml cargo run
 
 log_level: "info"
 logger: "plain"

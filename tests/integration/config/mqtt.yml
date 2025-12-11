@@ -5,14 +5,14 @@ sled_path: "/tmp/integration_test_db_mqtt"
 dedup_ttl_seconds: 60
 
 routes:
-  file_to_mqtt:
+  memory_to_mqtt:
     in:
-      file: { path: "/tmp/input.log" }
+      memory: { topic: "test-in" }
     out:
       mqtt: { url: "mqtt://localhost:1883", topic: "test_topic_mqtt" }
 
-  mqtt_to_file:
+  mqtt_to_memory:
     in:
       mqtt: { url: "mqtt://localhost:1883", topic: "test_topic_mqtt" }
     out:
-      file: { path: "/tmp/output_mqtt.log" }
+      memory: { topic: "test-out" }

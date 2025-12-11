@@ -397,7 +397,7 @@ pub struct MetricsConfig {
 impl Default for MetricsConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             listen_address: "0.0.0.0:9090".to_string(),
         }
     }

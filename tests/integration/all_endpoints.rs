@@ -9,14 +9,14 @@ use std::time::Duration;
 
 pub async fn test_all_pipelines_together() {
     setup_logging();
-    run_test_with_docker("tests/integration/docker-compose.all.yml", || async {
+    run_test_with_docker("tests/integration/docker-compose/all.yml", || async {
         let num_messages = 5;
         let (messages_to_send, sent_message_ids) = generate_test_messages(num_messages);
 
         // Load the comprehensive config
         // This config should define routes like `memory_to_kafka`, `kafka_to_memory`, etc.
         let full_config_settings = config::Config::builder()
-            .add_source(ConfigFile::with_name("tests/config.all").required(true))
+            .add_source(ConfigFile::with_name("tests/integration/config/all.yml").required(true))
             .build()
             .unwrap();
         let test_config: AppConfig = full_config_settings.try_deserialize().unwrap();
